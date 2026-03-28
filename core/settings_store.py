@@ -25,6 +25,7 @@ class Settings:
     window_height: int = 1080
     fullscreen: bool = True
     master_volume: float = 0.75
+    difficulty: str = "medium"  # easy | medium | hard
 
     def clamp_volume(self) -> None:
         self.master_volume = max(0.0, min(1.0, float(self.master_volume)))
@@ -42,11 +43,15 @@ def load_settings(path: str = DEFAULT_PATH) -> Settings:
     try:
         with open(path, "r", encoding="utf-8") as f:
             raw: Dict[str, Any] = json.load(f)
+        diff = str(raw.get("difficulty", "medium")).lower()
+        if diff not in ("easy", "medium", "hard"):
+            diff = "medium"
         s = Settings(
             window_width=int(raw.get("window_width", 1920)),
             window_height=int(raw.get("window_height", 1080)),
             fullscreen=bool(raw.get("fullscreen", True)),
             master_volume=float(raw.get("master_volume", 0.75)),
+            difficulty=diff,
         )
         s.clamp_volume()
         return s
