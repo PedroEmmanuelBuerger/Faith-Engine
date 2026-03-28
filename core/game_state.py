@@ -1,23 +1,28 @@
 """
 Estado central da partida: mundo, câmara, entidades e flags de UI.
-A lógica pesada fica em systems/; aqui orquestramos o tick.
 """
 
 from __future__ import annotations
 
+import random
 from typing import Any, Dict, List
 
-from core import config, utils
+from core import sfx
 from entities.enemy import Enemy
 from entities.player import Player
 from entities.projectile import Projectile
 from effects import particles as particle_fx
 from systems import combat_system, progression_system, spawn_system, upgrade_system
+from world.chunk_world import ChunkWorld
 
 
 class GameState:
-    def __init__(self) -> None:
-        self.player = Player(config.WORLD_W / 2, config.WORLD_H / 2)
+    def __init__(self, world_seed: int | None = None) -> None:
+        seed = world_seed if world_seed is not None else random.randint(1, 2**31 - 1)
+        self.world_seed = seed
+        self.world = ChunkWorld(seed)
+
+        self.player = Player(0.0, 0.0)
         self.enemies: List[Enemy] = []
         self.projectiles: List[Projectile] = []
 
@@ -87,7 +92,6 @@ class GameState:
 
     @property
     def spawn_pressure(self) -> float:
-        """Só aumenta número/cadência de spawns — não altera HP/dano dos inimigos."""
         return 1.0 + (self.wave - 1) * 0.042 + self.difficulty_time * 0.009
 
     def passive_faith_per_second(self) -> float:
@@ -118,17 +122,11 @@ class GameState:
         return 1.28 if self._prophet_spd_left > 0 else 1.0
 
     def _update_camera(self) -> None:
+        from core import config
+
         p = self.player
-        self.camera_x = utils.clamp(
-            p.x - config.VIEWPORT_W / 2,
-            0,
-            max(0, config.WORLD_W - config.VIEWPORT_W),
-        )
-        self.camera_y = utils.clamp(
-            p.y - config.VIEWPORT_H / 2,
-            0,
-            max(0, config.WORLD_H - config.VIEWPORT_H),
-        )
+        self.camera_x = p.x - config.VIEWPORT_W / 2
+        self.camera_y = p.y - config.VIEWPORT_H / 2
 
     def update(self, dt: float) -> None:
         self.difficulty_time += dt
@@ -166,16 +164,18 @@ class GameState:
         combat_system.update_projectiles(self, dt)
 
         self._update_camera()
+        self.world.prune_caches(self.player.x, self.player.y)
 
         if self.player.hp <= 0 and self.death_mode == "alive":
             self.death_mode = "fading"
             self.death_fade = 0.0
             self.screen_shake = max(self.screen_shake, 14.0)
+            sfx.play_death()
 
     def move_player(self, dx: float, dy: float, dt: float) -> None:
         if self.level_up_paused or self.death_mode != "alive" or self.player.hp <= 0:
             return
-        self.player.move(dx, dy, dt, config.WORLD_W, config.WORLD_H)
+        self.player.move(dx, dy, dt, None, None)
         self._update_camera()
 
     def select_upgrade(self, index: int) -> None:
@@ -192,7 +192,11 @@ class GameState:
         self.orbital_phase = 0.0
         self.orbital_debug.clear()
         self._enemy_hit_timer.clear()
-        self.player = Player(config.WORLD_W / 2, config.WORLD_H / 2)
+        self.world.clear_caches()
+        self.world_seed = random.randint(1, 2**31 - 1)
+        self.world = ChunkWorld(self.world_seed)
+
+        self.player = Player(0.0, 0.0)
         self.spawn_timer = 0.0
         self.wave = 1
         self.total_kills = 0

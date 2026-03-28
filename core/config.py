@@ -1,19 +1,23 @@
 """
-Constantes globais: viewport, mundo, tema gótico (cores provisórias para formas).
+Constantes globais: viewport (runtime), mundo, tema gótico.
 """
 
-# Janela
-VIEWPORT_W = 960
-VIEWPORT_H = 540
+from __future__ import annotations
+
+# Janela — atualizado em runtime por display.apply_video_mode
+VIEWPORT_W = 1280
+VIEWPORT_H = 720
 FPS = 60
 
-# Mundo (maior que o ecrã — câmara segue o jogador)
-WORLD_W = 2800
-WORLD_H = 1800
-
-GAME_TITLE = "Culto do Infinito"
+# Mundo infinito (sem bordas fixas; mantidos para compat legada se necessário)
+WORLD_W = 10_000_000.0
+WORLD_H = 10_000_000.0
 
 TILE_SIZE = 48
+PROJECTILE_MAX_DIST_FROM_PLAYER = 3600.0
+MAX_ENEMIES_ALIVE = 140
+
+GAME_TITLE = "Culto do Infinito"
 
 # Paleta gótica / igreja
 COLOR_VOID = (14, 10, 22)
@@ -28,8 +32,11 @@ COLOR_EYE_GLOW = (180, 255, 220)
 COLOR_PROJECTILE_CORE = (255, 240, 200)
 COLOR_PROJECTILE_GLOW = (200, 160, 255)
 
-# Sprite do jogador (altura no ecrã; +30% face ao tamanho anterior ~58px)
 PLAYER_SPRITE_HEIGHT = 75
-
-# Duração de cada frame da animação de caminhada (2 frames de perfil)
 PLAYER_WALK_FRAME_SEC = 0.14
+
+
+def set_viewport(width: int, height: int) -> None:
+    global VIEWPORT_W, VIEWPORT_H
+    VIEWPORT_W = max(320, int(width))
+    VIEWPORT_H = max(240, int(height))

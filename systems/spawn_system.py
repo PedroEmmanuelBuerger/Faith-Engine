@@ -1,10 +1,10 @@
 """
-Spawn de inimigos nas bordas do mundo, fora da vista da câmara.
-Pressão aumenta quantidade e variedade — não HP/dano base por tempo.
+Spawn em anel à volta do jogador (mapa infinito).
 """
 
 from __future__ import annotations
 
+import math
 import random
 from typing import TYPE_CHECKING
 
@@ -28,24 +28,26 @@ _WEIGHTS = (0.22, 0.18, 0.12, 0.18, 0.08, 0.12, 0.10)
 
 
 def _random_point_outside_view(state: GameState) -> tuple[float, float]:
-    cx, cy = state.camera_x, state.camera_y
+    px, py = state.player.x, state.player.y
     vw, vh = config.VIEWPORT_W, config.VIEWPORT_H
-    m = 100.0
-    left, right = cx - m, cx + vw + m
-    top, bottom = cy - m, cy + vh + m
+    margin = 80.0
+    inner = max(vw, vh) / 2 + margin
+    outer = inner + 420 + random.uniform(0, 380)
+    ang = random.uniform(0, math.tau)
+    d = random.uniform(inner, outer)
+    return px + math.cos(ang) * d, py + math.sin(ang) * d
 
-    zone = random.randint(0, 7)
-    if zone == 0:
-        return random.uniform(0, config.WORLD_W), random.uniform(0, max(0, top))
-    if zone == 1:
-        return random.uniform(0, config.WORLD_W), random.uniform(min(config.WORLD_H, bottom), config.WORLD_H)
-    if zone == 2:
-        return random.uniform(0, max(0, left)), random.uniform(0, config.WORLD_H)
-    if zone == 3:
-        return random.uniform(min(config.WORLD_W, right), config.WORLD_W), random.uniform(0, config.WORLD_H)
-    return random.uniform(0, config.WORLD_W), random.choice(
-        [random.uniform(0, 80), random.uniform(config.WORLD_H - 80, config.WORLD_H)]
+
+def _trim_excess_enemies(state: GameState) -> None:
+    cap = config.MAX_ENEMIES_ALIVE
+    if len(state.enemies) <= cap:
+        return
+    px, py = state.player.x, state.player.y
+    state.enemies.sort(
+        key=lambda e: (e.x - px) ** 2 + (e.y - py) ** 2,
+        reverse=True,
     )
+    del state.enemies[cap:]
 
 
 def _spawn_one(state: GameState) -> None:
@@ -61,9 +63,6 @@ def _spawn_one(state: GameState) -> None:
 
     explodes = kind == EnemyKind.CARRION_BOMB
     is_ranged = kind == EnemyKind.HERETIC
-
-    x = max(radius, min(config.WORLD_W - radius, x))
-    y = max(radius, min(config.WORLD_H - radius, y))
 
     state.enemies.append(
         Enemy(
@@ -92,4 +91,7 @@ def spawn_enemy(state: GameState) -> None:
         count += 1
 
     for _ in range(count):
+        if len(state.enemies) >= config.MAX_ENEMIES_ALIVE:
+            break
         _spawn_one(state)
+    _trim_excess_enemies(state)

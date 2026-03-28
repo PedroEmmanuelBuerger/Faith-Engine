@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, List
 from core import config
 from entities.enemy import Enemy
 from entities.projectile import Projectile
+from core import sfx
 from effects import particles as particle_fx
 
 if TYPE_CHECKING:
@@ -30,6 +31,7 @@ def apply_weapon_hit(
     if enemy.hp <= 0:
         return
     dead = enemy.take_damage(damage)
+    sfx.play_hit()
     particle_fx.spawn_hit_sparks(state, enemy.x, enemy.y)
     if dead:
         on_enemy_defeated(state, enemy, source)
@@ -175,12 +177,8 @@ def update_projectiles(state: GameState, dt: float) -> None:
             if proj.kind == "holy_flask" and proj.spawns_pool:
                 weapon_system.spawn_holy_pool(state, proj.x, proj.y)
             continue
-        if (
-            proj.x < -40
-            or proj.y < -40
-            or proj.x > config.WORLD_W + 40
-            or proj.y > config.WORLD_H + 40
-        ):
+        dist = math.hypot(proj.x - p.x, proj.y - p.y)
+        if dist > config.PROJECTILE_MAX_DIST_FROM_PLAYER:
             if proj.kind == "holy_flask" and proj.spawns_pool:
                 weapon_system.spawn_holy_pool(state, proj.x, proj.y)
             continue
