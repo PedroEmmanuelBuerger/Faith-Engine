@@ -222,6 +222,7 @@ class MainMenuScene:
                 return None
             return None
 
+        self._btn_start, self._btn_relics, self._btn_settings, self._btn_exit = self._layout()
         self._layout_difficulty_buttons()
         if self._diff_easy and self._diff_easy.collidepoint(pos):
             self._settings.difficulty = "easy"
