@@ -15,6 +15,7 @@ from core.settings_store import Settings, default_settings, load_settings, save_
 from systems import upgrade_system
 from scenes.main_menu import MainMenuScene
 from scenes.settings_scene import SettingsScene
+from ui.font_loader import load_game_fonts
 from ui.ui_manager import UIManager
 
 _log = game_logging.get_logger("app")
@@ -71,11 +72,12 @@ class GameApp:
             _log.warning("Áudio desativado (mixer indisponível)")
 
         vw, vh = self.screen.get_size()
-        self.main_menu = MainMenuScene(vw, vh)
+        self.fonts = load_game_fonts()
+        self.main_menu = MainMenuScene(vw, vh, self.fonts)
         self.settings_scene: SettingsScene | None = None
         self.play_state: GameState | None = None
         self.saved_prestige_points: int = 0
-        self.ui = UIManager()
+        self.ui = UIManager(self.fonts)
 
     def _sync_settings_size_from_screen(self) -> None:
         w, h = self.screen.get_size()
@@ -110,6 +112,7 @@ class GameApp:
             config.VIEWPORT_W,
             config.VIEWPORT_H,
             self._apply_settings,
+            self.fonts,
         )
         self.scene = AppScene.SETTINGS
         game_logging.log_state("Cena: SETTINGS")

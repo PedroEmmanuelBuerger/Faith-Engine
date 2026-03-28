@@ -5,21 +5,21 @@ Ficheiros: player_idle.png, player_walk.png, player_walk_2.png (opcional — dup
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import List, Optional, Tuple
 
 import pygame
 
 from core import config
-
-
-def _project_root() -> Path:
-    return Path(__file__).resolve().parent.parent
+from ui.sprite_assets import load_player_sprites_dynamic
 
 
 def _prepare_surface(surf: pygame.Surface) -> pygame.Surface:
     """Escala para altura fixa. Fundo branco: chroma só se o canto for opaco."""
-    surf = surf.convert_alpha()
+    try:
+        if pygame.display.get_init() and pygame.display.get_surface() is not None:
+            surf = surf.convert_alpha()
+    except pygame.error:
+        pass
     c0 = surf.get_at((0, 0))
     a = c0[3] if len(c0) > 3 else 255
     if a >= 250:
@@ -41,22 +41,15 @@ def load_player_sprites() -> Tuple[
     Optional[pygame.Surface], Optional[List[pygame.Surface]]
 ]:
     """
-    Devolve (idle, [walk_a, walk_b]) ou (None, None) se idle ou primeiro walk em falta.
+    assets/sprites/player/ (sprite.png, idle.png, walk.png, …) ou legacy na raiz de sprites/.
+    Devolve (idle, [walk_a, walk_b]) ou (None, None) se incompleto.
     """
-    root = _project_root()
-    idle_p = root / "assets" / "sprites" / "player_idle.png"
-    walk_p = root / "assets" / "sprites" / "player_walk.png"
-    walk2_p = root / "assets" / "sprites" / "player_walk_2.png"
-    if not idle_p.is_file() or not walk_p.is_file():
+    raw_idle, raw_walks = load_player_sprites_dynamic()
+    if raw_idle is None or not raw_walks:
         return None, None
     try:
-        idle = _prepare_surface(pygame.image.load(str(idle_p)))
-        w1 = _prepare_surface(pygame.image.load(str(walk_p)))
-        if walk2_p.is_file():
-            w2 = _prepare_surface(pygame.image.load(str(walk2_p)))
-            walks: List[pygame.Surface] = [w1, w2]
-        else:
-            walks = [w1, w1]
+        idle = _prepare_surface(raw_idle)
+        walks = [_prepare_surface(w) for w in raw_walks]
         return idle, walks
-    except (pygame.error, OSError):
+    except (pygame.error, OSError, ValueError):
         return None, None

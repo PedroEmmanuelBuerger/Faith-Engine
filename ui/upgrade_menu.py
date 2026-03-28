@@ -80,6 +80,7 @@ class UpgradeMenu:
         state: GameState,
         title_font: pygame.font.Font,
         body_font: pygame.font.Font,
+        desc_font: pygame.font.Font,
         screen_w: int,
         screen_h: int,
     ) -> None:
@@ -124,14 +125,16 @@ class UpgradeMenu:
             line = ""
             for w in words:
                 test = line + w + " "
-                if body_font.size(test)[0] > r.width - 28:
-                    surface.blit(body_font.render(line, True, (210, 200, 235)), (r.x + 14, y))
-                    y += 22
+                if desc_font.size(test)[0] > r.width - 28:
+                    surface.blit(desc_font.render(line, True, (210, 200, 235)), (r.x + 14, y))
+                    y += max(18, desc_font.get_height() + 2)
                     line = w + " "
                 else:
                     line = test
             if line:
-                surface.blit(body_font.render(line.strip(), True, (210, 200, 235)), (r.x + 14, y))
+                surface.blit(
+                    desc_font.render(line.strip(), True, (210, 200, 235)), (r.x + 14, y)
+                )
 
         syn_lines = _synergy_hint_lines(state)
         if syn_lines:

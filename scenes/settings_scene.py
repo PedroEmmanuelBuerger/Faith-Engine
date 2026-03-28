@@ -10,6 +10,7 @@ import pygame
 
 from core import config
 from core.settings_store import RESOLUTION_PRESETS, Settings
+from ui.font_loader import GameFonts
 
 
 class SettingsScene:
@@ -19,14 +20,15 @@ class SettingsScene:
         vw: int,
         vh: int,
         on_apply: Callable[[], None],
+        fonts: GameFonts,
     ) -> None:
         self.settings = settings
         self.vw = vw
         self.vh = vh
         self._on_apply = on_apply
-        self.title_font = pygame.font.SysFont("segoeui", 34, bold=True)
-        self.body_font = pygame.font.SysFont("segoeui", 22)
-        self.small_font = pygame.font.SysFont("segoeui", 17)
+        self.title_font = fonts.title_medium
+        self.body_font = fonts.body
+        self.small_font = fonts.small
         self._res_index = self._nearest_preset_index()
         self._btn_res: Optional[pygame.Rect] = None
         self._btn_full: Optional[pygame.Rect] = None

@@ -153,11 +153,16 @@ _ENEMY_BUILDERS = {
 _CACHE: Dict[str, pygame.Surface] = {}
 
 
+def build_enemy_surface(kind: str) -> pygame.Surface:
+    """Gera 64×64 procedural (sem cache de ficheiro). Usado em export e fallback."""
+    bkey = kind if kind in _ENEMY_BUILDERS else "priest"
+    return _ENEMY_BUILDERS[bkey]()
+
+
 def enemy_sprite_for_kind(kind: str) -> pygame.Surface:
     if kind in _CACHE:
         return _CACHE[kind]
-    bkey = kind if kind in _ENEMY_BUILDERS else "priest"
-    surf = _ENEMY_BUILDERS[bkey]()
+    surf = build_enemy_surface(kind)
     _CACHE[kind] = surf
     return surf
 

@@ -11,13 +11,17 @@ from typing import List, Optional, Tuple
 import pygame
 
 from core import config
+from ui.font_loader import GameFonts
+
+
 class MainMenuScene:
-    def __init__(self, vw: int, vh: int) -> None:
+    def __init__(self, vw: int, vh: int, fonts: GameFonts) -> None:
         self.vw = vw
         self.vh = vh
-        self.title_font = pygame.font.SysFont("segoeui", 46, bold=True)
-        self.menu_font = pygame.font.SysFont("segoeui", 26)
-        self.sub_font = pygame.font.SysFont("segoeui", 16)
+        self._fonts = fonts
+        self.title_font = fonts.title_large
+        self.menu_font = fonts.body
+        self.sub_font = fonts.small
         self._particles: List[dict] = []
         self._spawn_t = 0.0
         self._btn_start: Optional[pygame.Rect] = None

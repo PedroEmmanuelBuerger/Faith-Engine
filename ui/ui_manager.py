@@ -13,8 +13,10 @@ import pygame
 from core import config, utils
 from core.game_state import GameState
 from ui import environment, hud
+from ui.font_loader import GameFonts
 from ui.player_sprites import load_player_sprites
-from ui.procedural_sprites import enemy_sprite_for_kind, load_procedural_player_sprites
+from ui.procedural_sprites import load_procedural_player_sprites
+from ui.sprite_assets import load_enemy_sprite
 from ui.upgrade_menu import UpgradeMenu
 
 
@@ -57,7 +59,7 @@ def _draw_player_sprite(
 
 
 def _draw_enemy(surface: pygame.Surface, sx: int, sy: int, enemy) -> None:
-    spr = enemy_sprite_for_kind(enemy.kind)
+    spr = load_enemy_sprite(enemy.kind)
     flash = min(1.0, enemy.hit_flash)
     h = max(28, min(58, int(enemy.radius * 2.7)))
     w = max(20, int(spr.get_width() * h / max(1, spr.get_height())))
@@ -89,12 +91,13 @@ def _draw_projectile(surface: pygame.Surface, sx: int, sy: int, kind: str) -> No
 
 
 class UIManager:
-    def __init__(self) -> None:
+    def __init__(self, fonts: GameFonts) -> None:
+        self._fonts = fonts
         self.upgrade_menu = UpgradeMenu()
-        self.title_font = pygame.font.SysFont("segoeui", 28, bold=True)
-        self.big_death_font = pygame.font.SysFont("segoeui", 52, bold=True)
-        self.hud_font = pygame.font.SysFont("segoeui", 18)
-        self.small_font = pygame.font.SysFont("segoeui", 15)
+        self.title_font = fonts.title_medium
+        self.big_death_font = fonts.gothic_title
+        self.hud_font = fonts.body
+        self.small_font = fonts.small
         self._player_idle, self._player_walk_frames = load_player_sprites()
         if self._player_idle is None or not self._player_walk_frames:
             self._player_idle, self._player_walk_frames = load_procedural_player_sprites()
@@ -239,8 +242,9 @@ class UIManager:
         self.upgrade_menu.draw(
             screen,
             state,
-            self.title_font,
-            self.small_font,
+            self._fonts.title_large,
+            self._fonts.body,
+            self._fonts.small,
             config.VIEWPORT_W,
             config.VIEWPORT_H,
         )
@@ -253,7 +257,7 @@ class UIManager:
         dim = pygame.Surface((vw, vh), pygame.SRCALPHA)
         dim.fill((8, 4, 18, 200))
         surface.blit(dim, (0, 0))
-        title = self.title_font.render("PAUSA", True, (240, 220, 255))
+        title = self._fonts.title_medium.render("PAUSA", True, (240, 220, 255))
         tr = title.get_rect(center=(vw // 2, vh // 3))
         surface.blit(title, tr)
 
