@@ -1,80 +1,74 @@
 """
-Culto do Infinito — loop principal (Pygame).
+Faith-Engine — ponto de entrada.
 """
-import random
-
 import pygame
 
-from game_state import GameState
-import ui
-
-SCREEN_W, SCREEN_H = 960, 540
-FPS = 60
-BG_COLOR = (18, 14, 28)
+from core import config
+from core.game_state import GameState
+from core.utils import screen_to_world
+from systems import combat_system
+from ui.ui_manager import UIManager
 
 
 def main() -> None:
     pygame.init()
-    screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
-    pygame.display.set_caption("Culto do Infinito")
+    screen = pygame.display.set_mode((config.VIEWPORT_W, config.VIEWPORT_H))
+    pygame.display.set_caption(config.GAME_TITLE)
     clock = pygame.time.Clock()
-    font = pygame.font.SysFont("segoeui", 18)
-    big = pygame.font.SysFont("segoeui", 28, bold=True)
-    small = pygame.font.SysFont("segoeui", 16)
 
-    state = GameState(SCREEN_W, SCREEN_H)
+    state = GameState()
+    ui = UIManager()
     running = True
 
     while running:
-        dt = clock.tick(FPS) / 1000.0
+        dt = clock.tick(config.FPS) / 1000.0
+        mouse = pygame.mouse.get_pos()
+        ui.handle_upgrade_hover(mouse, state)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if not state.level_up_paused and state.player.hp > 0:
-                    state.add_click_faith()
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    if state.death_mode == "await_click":
+                        state.reset_run(keep_meta=True)
+                    elif state.level_up_paused:
+                        idx = ui.upgrade_menu.click_at(event.pos)
+                        if idx is not None:
+                            state.select_upgrade(idx)
+                    elif state.death_mode == "alive" and state.player.hp > 0:
+                        wx, wy = screen_to_world(
+                            float(event.pos[0]),
+                            float(event.pos[1]),
+                            state.camera_x,
+                            state.camera_y,
+                        )
+                        combat_system.try_shoot(state, wx, wy)
+
+                if event.button == 3:
+                    if (
+                        state.death_mode == "alive"
+                        and state.player.hp > 0
+                        and not state.level_up_paused
+                    ):
+                        state.add_click_faith()
+
             if event.type == pygame.KEYDOWN:
-                if state.level_up_paused:
-                    if event.key == pygame.K_1:
-                        state.select_upgrade(0)
-                    elif event.key == pygame.K_2:
-                        state.select_upgrade(1)
-                    elif event.key == pygame.K_3:
-                        state.select_upgrade(2)
-                elif event.key == pygame.K_p:
+                if event.key == pygame.K_p and state.death_mode == "alive":
                     state.do_prestige()
-                elif event.key == pygame.K_r and state.player.hp <= 0:
-                    state.reset_run(keep_meta=True)
 
         keys = pygame.key.get_pressed()
-        p = state.player
-        if not state.level_up_paused and p.hp > 0:
-            dx = (keys[pygame.K_d] or keys[pygame.K_RIGHT]) - (
-                keys[pygame.K_a] or keys[pygame.K_LEFT]
-            )
-            dy = (keys[pygame.K_s] or keys[pygame.K_DOWN]) - (
-                keys[pygame.K_w] or keys[pygame.K_UP]
-            )
-            p.move(dx, dy, dt, SCREEN_W, SCREEN_H)
+        dx = (keys[pygame.K_d] or keys[pygame.K_RIGHT]) - (
+            keys[pygame.K_a] or keys[pygame.K_LEFT]
+        )
+        dy = (keys[pygame.K_s] or keys[pygame.K_DOWN]) - (
+            keys[pygame.K_w] or keys[pygame.K_UP]
+        )
+        state.move_player(dx, dy, dt)
+
         state.update(dt)
-        state.update_particles_only(dt)
-
-        ox = oy = 0.0
-        if state.screen_shake > 0.1:
-            ox = random.uniform(-state.screen_shake, state.screen_shake)
-            oy = random.uniform(-state.screen_shake, state.screen_shake)
-
-        world = pygame.Surface((SCREEN_W, SCREEN_H))
-        world.fill(BG_COLOR)
-        ui.draw_world(world, state)
-        ui.draw_particles(world, state)
-        screen.blit(world, (int(ox), int(oy)))
-
-        ui.draw_hud(screen, state, font, small, SCREEN_H)
-        ui.draw_damage_flash(screen, SCREEN_W, SCREEN_H, state.damage_flash)
-        if state.level_up_paused:
-            ui.draw_level_up(screen, state, big, small, SCREEN_W, SCREEN_H)
-
+        ui.draw_frame(screen, state)
         pygame.display.flip()
 
     pygame.quit()
