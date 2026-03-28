@@ -27,3 +27,6 @@ COLOR_SHADOW = (25, 22, 38)
 COLOR_EYE_GLOW = (180, 255, 220)
 COLOR_PROJECTILE_CORE = (255, 240, 200)
 COLOR_PROJECTILE_GLOW = (200, 160, 255)
+
+# Sprite do jogador (altura em pixels no ecrã após escala)
+PLAYER_SPRITE_HEIGHT = 58

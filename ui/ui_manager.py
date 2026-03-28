@@ -14,24 +14,46 @@ from core import config, utils
 from core.game_state import GameState
 from entities.enemy import EnemyKind
 from ui import environment, hud
+from ui.player_sprites import load_player_sprites
 from ui.upgrade_menu import UpgradeMenu
 
 
-def _draw_cultist(surface: pygame.Surface, sx: int, sy: int, player) -> None:
-    """Manto + capuz + olhos luminosos (placeholder até haver sprite)."""
-    # Manto
+def _draw_cultist_fallback(surface: pygame.Surface, sx: int, sy: int, player) -> None:
+    """Placeholder se os PNGs não existirem."""
     robe = pygame.Rect(sx - 14, sy - 6, 28, 26)
     pygame.draw.ellipse(surface, (32, 28, 48), robe)
     pygame.draw.ellipse(surface, (55, 48, 72), robe, 2)
-    # Capuz
     hood = pygame.Rect(sx - 12, sy - 18, 24, 20)
     pygame.draw.ellipse(surface, (26, 22, 40), hood)
-    pygame.draw.arc(surface, (70, 62, 90), hood, 0.2, 2.9, 2)
-    # Olhos
     pygame.draw.circle(surface, config.COLOR_EYE_GLOW, (sx - 5, sy - 10), 3)
     pygame.draw.circle(surface, config.COLOR_EYE_GLOW, (sx + 5, sy - 10), 3)
-    pygame.draw.circle(surface, (255, 255, 255), (sx - 5, sy - 10), 1)
-    pygame.draw.circle(surface, (255, 255, 255), (sx + 5, sy - 10), 1)
+
+
+def _draw_player_sprite(
+    surface: pygame.Surface,
+    sx: int,
+    sy: int,
+    player,
+    idle_surf: pygame.Surface | None,
+    walk_surf: pygame.Surface | None,
+) -> None:
+    """
+    Parado: sprite de frente. Andando: sprite de perfil (espelhado se for para a esquerda).
+    Ancoragem: pés na base do círculo de colisão.
+    """
+    if idle_surf is None or walk_surf is None:
+        _draw_cultist_fallback(surface, sx, sy, player)
+        return
+
+    if player.is_walking:
+        img = walk_surf
+        if not player.facing_right:
+            img = pygame.transform.flip(walk_surf, True, False)
+    else:
+        img = idle_surf
+
+    rect = img.get_rect(midbottom=(int(sx), int(sy + player.radius)))
+    surface.blit(img, rect)
 
 
 def _draw_enemy(surface: pygame.Surface, sx: int, sy: int, enemy) -> None:
@@ -67,6 +89,7 @@ class UIManager:
         self.big_death_font = pygame.font.SysFont("segoeui", 52, bold=True)
         self.hud_font = pygame.font.SysFont("segoeui", 18)
         self.small_font = pygame.font.SysFont("segoeui", 15)
+        self._player_idle, self._player_walk = load_player_sprites()
 
     def draw_world_layer(self, surface: pygame.Surface, state: GameState) -> None:
         cx, cy = state.camera_x, state.camera_y
@@ -84,7 +107,9 @@ class UIManager:
 
         p = state.player
         sx, sy = utils.world_to_screen(p.x, p.y, cx, cy)
-        _draw_cultist(surface, int(sx), int(sy), p)
+        _draw_player_sprite(
+            surface, int(sx), int(sy), p, self._player_idle, self._player_walk
+        )
 
         for pt in state.particles:
             psx, psy = utils.world_to_screen(pt["x"], pt["y"], cx, cy)
