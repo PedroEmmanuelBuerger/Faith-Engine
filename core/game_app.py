@@ -18,7 +18,7 @@ from scenes.settings_scene import SettingsScene
 from ui.font_loader import load_game_fonts
 from ui.sprite_assets import clear_enemy_sprite_cache
 from ui.weapon_assets import clear_weapon_sprite_cache
-from ui.ui_manager import UIManager
+from ui.ui_manager import UIManager, clear_pickup_sprite_cache
 
 _log = game_logging.get_logger("app")
 
@@ -90,6 +90,7 @@ class GameApp:
         """set_mode invalida fontes e superfícies convertidas; recarregar tudo."""
         clear_enemy_sprite_cache()
         clear_weapon_sprite_cache()
+        clear_pickup_sprite_cache()
         self.fonts = load_game_fonts()
         vw, vh = config.VIEWPORT_W, config.VIEWPORT_H
         self.main_menu.set_fonts(self.fonts)
@@ -187,10 +188,22 @@ class GameApp:
                     self.settings_scene.handle_mouse_motion(event.pos)
 
     def _on_mouse_down(self, pos: tuple[int, int], button: int) -> None:
-        if button != 1:
+        if button == 3:
             if (
-                button == 3
-                and self.scene == AppScene.PLAYING
+                self.scene == AppScene.PLAYING
+                and self.play_state
+                and self.play_state.death_mode == "alive"
+                and self.play_state.player.hp > 0
+                and not self.play_state.level_up_paused
+                and not self.play_state.game_paused
+            ):
+                st = self.play_state
+                st.auto_attack_enabled = not st.auto_attack_enabled
+            return
+
+        if button == 2:
+            if (
+                self.scene == AppScene.PLAYING
                 and self.play_state
                 and self.play_state.death_mode == "alive"
                 and self.play_state.player.hp > 0
@@ -198,6 +211,9 @@ class GameApp:
                 and not self.play_state.game_paused
             ):
                 self.play_state.add_click_faith()
+            return
+
+        if button != 1:
             return
 
         if self.scene == AppScene.PLAYING and self.play_state:
