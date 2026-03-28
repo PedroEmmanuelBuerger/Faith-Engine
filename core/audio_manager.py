@@ -66,6 +66,9 @@ class AudioManager:
             "shoot": "shoot.wav",
             "hit": "hit.wav",
             "death": "death.wav",
+            "pickup": "pickup.wav",
+            "enemy_death": "enemy_death.wav",
+            "shoot_heavy": "shoot_heavy.wav",
         }
         for key, fname in mapping.items():
             path = os.path.join(_ASSETS, fname)
@@ -108,6 +111,26 @@ class AudioManager:
 
     def play_death(self) -> None:
         self._play("death", 0.85)
+
+    def play_pickup(self) -> None:
+        self._play("pickup", 0.62)
+
+    def play_enemy_death(self) -> None:
+        self._play("enemy_death", 0.58)
+
+    def play_shoot_heavy(self) -> None:
+        self._play("shoot_heavy", 0.62)
+
+    def set_intensity_volume(self, intensity: float) -> None:
+        """0 = calmo, 1 = caótico — mistura com volume mestre na música."""
+        if not self._mixer_ok or not self._music_path:
+            return
+        t = max(0.0, min(1.0, float(intensity)))
+        try:
+            music_vol = self._master * (0.36 + t * 0.26)
+            pygame.mixer.music.set_volume(music_vol)
+        except (pygame.error, RuntimeError):
+            pass
 
     def _play(self, name: str, rel: float) -> None:
         if not self._mixer_ok:
