@@ -8,7 +8,7 @@ import math
 import random
 from typing import TYPE_CHECKING, Any, Dict, List
 
-from core import sfx
+from core import config, sfx
 from effects import particles as particle_fx
 from entities.pickup import PICKUP_BIBLE
 from systems import upgrade_system
@@ -35,6 +35,8 @@ def try_spawn_bibles(state: GameState, dt: float) -> None:
     if state.bible_spawn_timer > 0:
         return
     state.bible_spawn_timer = random.uniform(32.0, 58.0)
+    if len(state.pickups) >= config.MAX_PICKUPS_WORLD:
+        return
     x, y = _spawn_position(state)
     state.pickups.append(
         {
@@ -51,11 +53,14 @@ def _collect(state: GameState, pu: Dict[str, Any]) -> None:
     kind = pu["kind"]
     if kind == PICKUP_BIBLE:
         particle_fx.spawn_bible_collect(state, pu["x"], pu["y"])
-        sfx.play_shoot()
+        sfx.play_pickup()
         state.screen_shake = max(state.screen_shake, 3.5)
         if not state.level_up_paused:
             state.level_up_paused = True
             state.upgrade_choice_ids = upgrade_system.random_choices(3)
+            state.upgrade_choice_rarities = upgrade_system.roll_rarities(
+                len(state.upgrade_choice_ids)
+            )
 
 
 def _player_touches(pu: Dict[str, Any], px: float, py: float, pr: float) -> bool:

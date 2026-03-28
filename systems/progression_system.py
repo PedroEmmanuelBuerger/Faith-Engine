@@ -32,6 +32,7 @@ def try_level_up(state: GameState) -> None:
     recalc_xp_to_next(state)
     state.level_up_paused = True
     state.upgrade_choice_ids = upgrade_system.random_choices(3)
+    state.upgrade_choice_rarities = upgrade_system.roll_rarities(len(state.upgrade_choice_ids))
 
 
 def select_upgrade(state: GameState, index: int) -> None:
@@ -40,8 +41,15 @@ def select_upgrade(state: GameState, index: int) -> None:
     if index < 0 or index >= len(state.upgrade_choice_ids):
         return
     uid = state.upgrade_choice_ids[index]
-    upgrade_system.apply_upgrade(state, uid)
+    rarities = getattr(state, "upgrade_choice_rarities", [])
+    rarity = (
+        rarities[index]
+        if index < len(rarities)
+        else upgrade_system.RARITY_COMMON
+    )
+    upgrade_system.apply_upgrade(state, uid, rarity=rarity)
     state.upgrade_choice_ids = []
+    state.upgrade_choice_rarities = []
     state.level_up_paused = False
     try_level_up(state)
 

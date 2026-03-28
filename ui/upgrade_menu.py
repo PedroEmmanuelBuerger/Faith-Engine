@@ -39,7 +39,7 @@ class UpgradeMenu:
             return []
         gap = 18
         card_w = min(260, (screen_w - gap * (n + 1)) // n)
-        card_h = 210
+        card_h = 228
         total_w = n * card_w + (n - 1) * gap
         start_x = (screen_w - total_w) // 2
         y = screen_h // 2 - card_h // 2
@@ -98,42 +98,56 @@ class UpgradeMenu:
 
         self.sync_layout(state, screen_w, screen_h)
 
+        rarities = getattr(state, "upgrade_choice_rarities", [])
+
         for i, uid in enumerate(state.upgrade_choice_ids):
             if i >= len(self.card_rects):
                 break
             r = self.card_rects[i]
             hover = i == self.hovered_index
+            pad = 4 if hover else 0
+            r2 = r.inflate(pad * 2, pad * 2)
+            rolled = rarities[i] if i < len(rarities) else upgrade_system.RARITY_COMMON
+            eff = upgrade_system.effective_rarity_for_choice(uid, rolled)
+            rc = upgrade_system.RARITY_RGB.get(eff, (180, 180, 200))
             bg = (52, 40, 78) if hover else (38, 30, 58)
-            br = (200, 170, 255) if hover else (120, 95, 160)
-            pygame.draw.rect(surface, bg, r, border_radius=14)
-            pygame.draw.rect(surface, br, r, 3 if hover else 2, border_radius=14)
+            pygame.draw.rect(surface, bg, r2, border_radius=14)
+            pygame.draw.rect(surface, rc, r2, 4 if hover else 3, border_radius=14)
+            strip = pygame.Surface((r2.width - 8, 10), pygame.SRCALPHA)
+            strip.fill((*rc, 120))
+            surface.blit(strip, (r2.x + 4, r2.y + 6))
 
             name, desc = upgrade_system.describe(uid)
             stacks = state.upgrade_counts.get(uid, 0)
             ic = upgrade_system.icon_for(uid)
+            rlab = upgrade_system.RARITY_LABEL_PT.get(eff, eff)
+            surface.blit(
+                desc_font.render(rlab.upper(), True, rc),
+                (r2.x + 14, r2.y + 20),
+            )
             surface.blit(
                 body_font.render(f"{ic}  {name}", True, (255, 255, 255)),
-                (r.x + 14, r.y + 16),
+                (r2.x + 14, r2.y + 36),
             )
             surface.blit(
                 body_font.render(f"Próxima pilha: ×{stacks + 1}", True, (200, 190, 230)),
-                (r.x + 14, r.y + 44),
+                (r2.x + 14, r2.y + 62),
             )
             # Descrição quebrada em linhas simples
-            y = r.y + 74
+            y = r2.y + 92
             words = desc.split()
             line = ""
             for w in words:
                 test = line + w + " "
-                if desc_font.size(test)[0] > r.width - 28:
-                    surface.blit(desc_font.render(line, True, (210, 200, 235)), (r.x + 14, y))
+                if desc_font.size(test)[0] > r2.width - 28:
+                    surface.blit(desc_font.render(line, True, (210, 200, 235)), (r2.x + 14, y))
                     y += max(18, desc_font.get_height() + 2)
                     line = w + " "
                 else:
                     line = test
             if line:
                 surface.blit(
-                    desc_font.render(line.strip(), True, (210, 200, 235)), (r.x + 14, y)
+                    desc_font.render(line.strip(), True, (210, 200, 235)), (r2.x + 14, y)
                 )
 
         syn_lines = _synergy_hint_lines(state)

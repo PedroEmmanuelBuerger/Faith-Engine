@@ -19,78 +19,150 @@ from systems import synergies
 if TYPE_CHECKING:
     from core.game_state import GameState
 
-# (nome, descrição clara do efeito)
+RARITY_COMMON = "common"
+RARITY_RARE = "rare"
+RARITY_EPIC = "epic"
+RARITY_LEGENDARY = "legendary"
+
+RARITY_LABEL_PT: Dict[str, str] = {
+    RARITY_COMMON: "Comum",
+    RARITY_RARE: "Raro",
+    RARITY_EPIC: "Épico",
+    RARITY_LEGENDARY: "Lendário",
+}
+
+# Cor da faixa / texto na carta (R, G, B)
+RARITY_RGB: Dict[str, Tuple[int, int, int]] = {
+    RARITY_COMMON: (170, 168, 188),
+    RARITY_RARE: (100, 170, 255),
+    RARITY_EPIC: (190, 120, 255),
+    RARITY_LEGENDARY: (255, 200, 90),
+}
+
+# Bónus acumulado ao dano base do jogador (multiplicativo em refresh_stats)
+RARITY_ASCENSION_BONUS: Dict[str, float] = {
+    RARITY_COMMON: 0.0,
+    RARITY_RARE: 0.034,
+    RARITY_EPIC: 0.072,
+    RARITY_LEGENDARY: 0.14,
+}
+
+# Raridade “tema” por upgrade (afeta cor mínima ao rolar)
+UPGRADE_BASE_RARITY: Dict[str, str] = {
+    "w_dark_bolt": RARITY_COMMON,
+    "w_ritual_sword": RARITY_RARE,
+    "w_serpent_whip": RARITY_COMMON,
+    "w_holy_water": RARITY_RARE,
+    "w_inferno_pulse": RARITY_EPIC,
+    "w_celestial_orbs": RARITY_EPIC,
+    "flame_ritual": RARITY_COMMON,
+    "chain_lightning": RARITY_RARE,
+    "blood_pact": RARITY_EPIC,
+    "possession_hex": RARITY_COMMON,
+    "echo_shot": RARITY_RARE,
+    "cult_network": RARITY_COMMON,
+    "fervor": RARITY_COMMON,
+    "veil_step": RARITY_COMMON,
+    "venom_font": RARITY_RARE,
+    "omen_sight": RARITY_EPIC,
+    "martyr_vein": RARITY_RARE,
+}
+
+
+def roll_rarities(n: int) -> List[str]:
+    out: List[str] = []
+    for _ in range(n):
+        u = random.random()
+        if u < 0.54:
+            out.append(RARITY_COMMON)
+        elif u < 0.82:
+            out.append(RARITY_RARE)
+        elif u < 0.95:
+            out.append(RARITY_EPIC)
+        else:
+            out.append(RARITY_LEGENDARY)
+    return out
+
+
+def rarity_at_least(a: str, b: str) -> str:
+    order = (RARITY_COMMON, RARITY_RARE, RARITY_EPIC, RARITY_LEGENDARY)
+    return a if order.index(a) >= order.index(b) else b
+
+
+def effective_rarity_for_choice(uid: str, rolled: str) -> str:
+    base = UPGRADE_BASE_RARITY.get(uid, RARITY_COMMON)
+    return rarity_at_least(rolled, base)
+
+
+# (nome, descrição orientada ao jogador — efeito concreto)
 UPGRADE_DEFS: Dict[str, Tuple[str, str]] = {
-    # —— Armas (uma “ganha” por pilha maior; empilhar melhora a arma escolhida)
     "w_dark_bolt": (
         "Raio Sombrio",
-        "Projétil rápido ao inimigo mais próximo. Empilha: mais cadência implícita com outras cartas.",
+        "Dispara um projétil rápido na direção da mira (ou do alvo em auto-ataque). Cada pilha melhora o dano base desta arma.",
     ),
     "w_ritual_sword": (
         "Espada Ritual",
-        "Golpe em arco à frente — acerta vários inimigos de uma vez. Pilhas: mais alcance e arco.",
+        "Corta um arco à tua frente: acerta vários inimigos de uma vez. Pilhas: mais alcance e ângulo do arco.",
     ),
     "w_serpent_whip": (
         "Chicote da Serpente",
-        "Açoite em linha longa. Pilhas: mais comprimento.",
+        "Açoite em linha reta e longa. Pilhas: chicote mais comprido.",
     ),
     "w_holy_water": (
         "Água Benta",
-        "Lança um frasco; ao impacto fica um poço sagrado no chão que queima ao passar.",
+        "Arremessa um frasco; ao acertar, cria um poço sagrado no chão que causa dano contínuo a quem passa.",
     ),
     "w_inferno_pulse": (
         "Pulso Infernal",
-        "Explosão circular em volta de ti. Pilhas: raio maior. Cadência mais lenta.",
+        "Explosão circular centrada em ti. Pilhas: raio maior. Disparo mais lento que projéteis normais.",
     ),
     "w_celestial_orbs": (
         "Orbes Celestiais",
-        "Esferas giram à tua volta e ferem ao contacto. Sem projétil: puro corpo-a-corpo orbital.",
+        "Orbes orbitam o teu corpo e magoam ao contacto. Precisas de pelo menos uma pilha para ativarem.",
     ),
-    # —— Habilidades (mecânicas)
     "flame_ritual": (
         "Ritual das Chamas",
-        "Cada morte causa uma pequena explosão de fogo (dano em área).",
+        "Quando um inimigo morre, provoca uma pequena explosão de fogo que pode ferir outros próximos.",
     ),
     "chain_lightning": (
         "Corrente Elétrica",
-        "Acertos de Raio Sombrio saltam a inimigos vizinhos (ricochete).",
+        "Acertos do Raio Sombrio podem saltar para inimigos vizinhos (ricochete adicional).",
     ),
     "blood_pact": (
         "Pacto de Sangue",
-        "Perdes vida lentamente mas o teu dano de armas dispara muito.",
+        "Perdes vida continuamente, mas o dano das tuas armas aumenta muito (empilha forte com outras fontes de dano).",
     ),
     "possession_hex": (
         "Hex da Possessão",
-        "Chance ao acertar: inimigo fica confuso e deixa de te perseguir por uns segundos.",
+        "Ao acertar inimigos, pequena chance de os confundir: deixam de te perseguir por uns segundos.",
     ),
     "echo_shot": (
         "Eco do Disparo",
-        "O Raio Sombrio dispara um segundo projétil ligeiramente desviado.",
+        "O Raio Sombrio dispara um segundo projétil extra, ligeiramente desviado.",
     ),
-    # —— Apoios leves (secundários)
     "cult_network": (
         "Rede de Fiéis",
-        "Um pouco mais de Fé passiva (incremental).",
+        "Aumenta a Fé ganha passivamente por segundo (escala com pilhas).",
     ),
     "fervor": (
         "Fervor",
-        "Cadência de ataque principal ligeiramente mais rápida.",
+        "Aumenta ligeiramente a cadência global das armas e um pouco o teu dano corpo-a-corpo.",
     ),
     "veil_step": (
         "Passo do Véu",
-        "Movimento um pouco mais rápido; sinergia com Orbes.",
+        "Aumenta a velocidade de movimento e a velocidade dos projéteis; sinergia com Orbes Celestiais.",
     ),
     "venom_font": (
         "Fonte Venenosa",
-        "Sinergia: com Água Benta, os poços causam mais dano e duram mais.",
+        "Sinergia: com Água Benta, os poços no chão causam mais dano e duram mais tempo.",
     ),
     "omen_sight": (
         "Olho do Presságio",
-        "A cada poucos segundos: bónus breve de dano, velocidade de projétil, Fé ou cura.",
+        "A intervalos: recebes um bónus aleatório curto (dano, velocidade de projétil, Fé ou cura).",
     ),
     "martyr_vein": (
         "Veia do Mártir",
-        "Ao escolher: +14 HP máx. e cura imediata pequena.",
+        "Ao escolher esta carta: +14 HP máximo e cura imediata.",
     ),
 }
 
@@ -160,7 +232,8 @@ def refresh_stats(state: GameState) -> None:
     pact = c.get("blood_pact", 0)
     state.weapon_damage_mult = 1.0 + pact * 0.42 + 0.04 * max(0, c.get("fervor", 0))
 
-    p.damage_multiplier = 1.0 + 0.03 * c.get("fervor", 0)
+    asc = float(getattr(state, "ascension_pick_bonus", 0.0))
+    p.damage_multiplier = (1.0 + 0.03 * c.get("fervor", 0)) * (1.0 + asc)
     p.projectile_speed_mult = 1.0 + 0.04 * c.get("veil_step", 0)
     p.move_speed = 240.0 + 8 * c.get("veil_step", 0)
 
@@ -186,7 +259,11 @@ _ON_PICK: Dict[str, Callable[[GameState], None]] = {
 }
 
 
-def apply_upgrade(state: GameState, uid: str) -> None:
+def apply_upgrade(state: GameState, uid: str, rarity: str = RARITY_COMMON) -> None:
+    eff = effective_rarity_for_choice(uid, rarity)
+    bonus = RARITY_ASCENSION_BONUS.get(eff, 0.0)
+    state.ascension_pick_bonus = float(getattr(state, "ascension_pick_bonus", 0.0)) + bonus
+
     prev = state.upgrade_counts.get(uid, 0)
     if uid in WEAPON_IDS and prev == 0:
         _ensure_weapon_loadout(state, uid)
