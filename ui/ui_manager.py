@@ -114,10 +114,12 @@ class UIManager:
         self.hud_font = pygame.font.SysFont("segoeui", 18)
         self.small_font = pygame.font.SysFont("segoeui", 15)
         self._player_idle, self._player_walk_frames = load_player_sprites()
+        self.death_restart_rect: pygame.Rect | None = None
+        self.death_menu_rect: pygame.Rect | None = None
 
     def draw_world_layer(self, surface: pygame.Surface, state: GameState) -> None:
         cx, cy = state.camera_x, state.camera_y
-        environment.draw_world_background(surface, cx, cy)
+        environment.draw_world_background(surface, state)
 
         for pool in state.ground_pools:
             psx, psy = utils.world_to_screen(pool["x"], pool["y"], cx, cy)
@@ -191,6 +193,8 @@ class UIManager:
 
     def draw_death_screen(self, surface: pygame.Surface, state: GameState) -> None:
         if state.death_mode == "alive":
+            self.death_restart_rect = None
+            self.death_menu_rect = None
             return
         dark = pygame.Surface((config.VIEWPORT_W, config.VIEWPORT_H), pygame.SRCALPHA)
         a = int(220 * state.death_fade)
@@ -210,10 +214,24 @@ class UIManager:
             surface.blit(lv, lv.get_rect(center=(config.VIEWPORT_W // 2, config.VIEWPORT_H // 2 + 28)))
 
             if state.death_mode == "await_click":
-                pulse = 0.75 + 0.25 * math.sin(pygame.time.get_ticks() * 0.005)
-                c = (int(200 + 55 * pulse), int(220 + 35 * pulse), 255)
-                hint = self.title_font.render("Clica para reencarnar", True, c)
-                surface.blit(hint, hint.get_rect(center=(config.VIEWPORT_W // 2, config.VIEWPORT_H // 2 + 95)))
+                cy = config.VIEWPORT_H // 2 + 88
+                bw, bh = 220, 44
+                gap = 18
+                total = bw * 2 + gap
+                sx0 = (config.VIEWPORT_W - total) // 2
+                self.death_restart_rect = pygame.Rect(sx0, cy, bw, bh)
+                self.death_menu_rect = pygame.Rect(sx0 + bw + gap, cy, bw, bh)
+                for r, label in (
+                    (self.death_restart_rect, "Recomeçar"),
+                    (self.death_menu_rect, "Menu principal"),
+                ):
+                    pygame.draw.rect(surface, (48, 38, 72), r, border_radius=10)
+                    pygame.draw.rect(surface, (180, 150, 220), r, 2, border_radius=10)
+                    t = self.hud_font.render(label, True, (240, 230, 255))
+                    surface.blit(t, t.get_rect(center=r.center))
+            else:
+                self.death_restart_rect = None
+                self.death_menu_rect = None
 
     def draw_frame(self, screen: pygame.Surface, state: GameState) -> None:
         world = pygame.Surface((config.VIEWPORT_W, config.VIEWPORT_H))
