@@ -40,6 +40,9 @@ WEAPON_ORDER = (
     W_DARK_BOLT,
 )
 
+MAX_LOADOUT_WEAPONS = 3
+WEAPON_IDS: frozenset[str] = frozenset(WEAPON_ORDER)
+
 
 @dataclass(frozen=True)
 class Weapon:

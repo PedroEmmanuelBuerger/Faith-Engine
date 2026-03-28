@@ -7,7 +7,13 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple
 
-from entities.weapon import W_DARK_BOLT, WEAPON_ORDER, compute_active_weapon, get_weapon
+from entities.weapon import (
+    MAX_LOADOUT_WEAPONS,
+    WEAPON_IDS,
+    WEAPON_ORDER,
+    compute_active_weapon,
+    get_weapon,
+)
 from systems import synergies
 
 if TYPE_CHECKING:
@@ -128,6 +134,20 @@ def random_choices(n: int = 3, exclude: Optional[List[str]] = None) -> List[str]
     return random.sample(pool, n)
 
 
+def _ensure_weapon_loadout(state: GameState, wid: str) -> None:
+    if wid not in WEAPON_IDS:
+        return
+    if wid in state.weapon_loadout:
+        return
+    if len(state.weapon_loadout) < MAX_LOADOUT_WEAPONS:
+        state.weapon_loadout.append(wid)
+        return
+    old = state.weapon_loadout.pop(0)
+    state.upgrade_counts[old] = 0
+    state.weapon_cooldowns.pop(old, None)
+    state.weapon_loadout.append(wid)
+
+
 def refresh_stats(state: GameState) -> None:
     p = state.player
     c = state.upgrade_counts
@@ -145,7 +165,8 @@ def refresh_stats(state: GameState) -> None:
     p.move_speed = 240.0 + 8 * c.get("veil_step", 0)
 
     interval = max(0.1, 0.95 * (0.9 ** c.get("fervor", 0)))
-    p.shoot_interval = max(0.1, interval / max(0.25, w.attack_speed_multiplier))
+    state._weapon_base_interval = interval
+    p.shoot_interval = interval
 
     state.followers = 1.0 + c.get("cult_network", 0) * 0.7
     state.faith_rate_multiplier = (1.0 + 0.06 * c.get("cult_network", 0)) * state.prestige_faith_mult
@@ -166,7 +187,10 @@ _ON_PICK: Dict[str, Callable[[GameState], None]] = {
 
 
 def apply_upgrade(state: GameState, uid: str) -> None:
-    state.upgrade_counts[uid] = state.upgrade_counts.get(uid, 0) + 1
+    prev = state.upgrade_counts.get(uid, 0)
+    if uid in WEAPON_IDS and prev == 0:
+        _ensure_weapon_loadout(state, uid)
+    state.upgrade_counts[uid] = prev + 1
     if uid in _ON_PICK:
         _ON_PICK[uid](state)
     refresh_stats(state)
