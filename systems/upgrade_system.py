@@ -19,7 +19,7 @@ UPGRADE_DEFS: Dict[str, Tuple[str, str]] = {
     ),
     "void_echo": ("Eco do Vazio", "+6% velocidade dos projéteis por pilha."),
     "cult_network": ("Rede do Culto", "+0,8 Fé/s passiva por seguidor acumulado."),
-    "rapid_pulse": ("Pulso Rápido", "Cadência de tiro ~8% mais rápida por pilha."),
+    "rapid_pulse": ("Pulso Rápido", "~8% mais disparos por segundo por pilha (base 1/s)."),
     "martyr_blood": ("Sangue do Mártir", "+12 HP máximos e +3 cura ao escolher."),
 }
 
@@ -57,7 +57,8 @@ def refresh_stats(state: GameState) -> None:
 
     p.damage_multiplier = dmg
     p.projectile_speed_mult = proj_spd
-    p.shoot_interval = max(0.12, 0.38 * interval_mult)
+    # Base 1.0s → mais pilhas de Pulso Rápido = intervalo menor (mais tiros/s)
+    p.shoot_interval = max(0.08, 1.0 * interval_mult)
 
     state.followers = 1.0 + c.get("cult_network", 0) * 0.8
     state.faith_rate_multiplier = faith_from_upgrades * state.prestige_faith_mult

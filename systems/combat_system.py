@@ -8,28 +8,27 @@ import math
 from typing import TYPE_CHECKING, List
 
 from core import config
+from entities.enemy import Enemy
 from entities.projectile import Projectile
 from effects import particles as particle_fx
 
 if TYPE_CHECKING:
     from core.game_state import GameState
-    from entities.enemy import Enemy
 
 
-def try_shoot(state: GameState, target_world_x: float, target_world_y: float) -> None:
-    """Dispara um projétil na direção do ponto no mundo (tipicamente o rato)."""
+def _fire_toward_point(
+    state: GameState, target_x: float, target_y: float
+) -> None:
+    """Cria um projétil na direção de um ponto no mundo."""
     p = state.player
-    if p.shoot_cooldown > 0 or p.hp <= 0:
-        return
-    dx = target_world_x - p.x
-    dy = target_world_y - p.y
+    dx = target_x - p.x
+    dy = target_y - p.y
     if dx == 0 and dy == 0:
         dx, dy = 1.0, 0.0
 
     dmg = p.effective_damage * state.prophet_projectile_damage_mult()
     spd = p.projectile_speed * state.prophet_projectile_speed_mult()
 
-    # Saída ligeiramente à frente do corpo do cultista
     dist = math.hypot(dx, dy)
     ux, uy = dx / dist, dy / dist
     spawn_x = p.x + ux * (p.radius + 4)
@@ -41,6 +40,21 @@ def try_shoot(state: GameState, target_world_x: float, target_world_y: float) ->
     p.shoot_cooldown = p.shoot_interval
 
     particle_fx.spawn_muzzle(state, spawn_x, spawn_y, ux, uy)
+
+
+def try_shoot_nearest_enemy(state: GameState) -> None:
+    """Disparo automático: aponta ao inimigo mais próximo (se existir)."""
+    p = state.player
+    if p.shoot_cooldown > 0 or p.hp <= 0 or not state.enemies:
+        return
+
+    def dist_sq(e: Enemy) -> float:
+        ddx = e.x - p.x
+        ddy = e.y - p.y
+        return ddx * ddx + ddy * ddy
+
+    nearest = min(state.enemies, key=dist_sq)
+    _fire_toward_point(state, nearest.x, nearest.y)
 
 
 def _projectile_hits_enemy(px: float, py: float, pr: float, e: Enemy) -> bool:
@@ -71,6 +85,8 @@ def update_contact_damage(state: GameState, dt: float) -> None:
 def update_projectiles(state: GameState, dt: float) -> None:
     p = state.player
     p.shoot_cooldown = max(0.0, p.shoot_cooldown - dt)
+    # Cadência automática: após o cooldown, dispara contra o mais próximo
+    try_shoot_nearest_enemy(state)
 
     alive_proj: List[Projectile] = []
     for proj in state.projectiles:

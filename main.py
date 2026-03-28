@@ -5,8 +5,6 @@ import pygame
 
 from core import config
 from core.game_state import GameState
-from core.utils import screen_to_world
-from systems import combat_system
 from ui.ui_manager import UIManager
 
 
@@ -37,14 +35,6 @@ def main() -> None:
                         idx = ui.upgrade_menu.click_at(event.pos)
                         if idx is not None:
                             state.select_upgrade(idx)
-                    elif state.death_mode == "alive" and state.player.hp > 0:
-                        wx, wy = screen_to_world(
-                            float(event.pos[0]),
-                            float(event.pos[1]),
-                            state.camera_x,
-                            state.camera_y,
-                        )
-                        combat_system.try_shoot(state, wx, wy)
 
                 if event.button == 3:
                     if (

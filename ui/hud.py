@@ -30,7 +30,11 @@ def draw_hud(
     )
     surface.blit(font.render(line, True, (230, 220, 255)), (12, 10))
     surface.blit(
-        small.render("Esq: disparar  |  Dir: Fé  |  WASD: mover", True, (170, 160, 200)),
+        small.render(
+            "Tiro automático (mais próximo)  |  Dir: Fé  |  WASD: mover",
+            True,
+            (170, 160, 200),
+        ),
         (12, 52),
     )
     surface.blit(

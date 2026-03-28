@@ -22,7 +22,8 @@ class Player:
         self.projectile_speed_mult = 1.0
         self.move_speed = 240.0
 
-        self.shoot_interval = 0.38
+        # Cadência base: 1 disparo por segundo (upgrade Pulso Rápido reduz o intervalo)
+        self.shoot_interval = 1.0
         self.shoot_cooldown = 0.0
 
     @property
