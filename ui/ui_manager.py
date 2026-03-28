@@ -14,9 +14,18 @@ from core import config, utils
 from core.game_state import GameState
 from ui import environment, hud
 from ui.font_loader import GameFonts
+from entities.player import FaceDirection
 from ui.player_sprites import load_player_sprites
 from ui.sprite_assets import load_enemy_sprite
 from ui.upgrade_menu import UpgradeMenu
+from ui import weapon_assets
+
+_WEAPON_OFFSETS: dict[FaceDirection, tuple[float, float]] = {
+    FaceDirection.RIGHT: (14.0, -30.0),
+    FaceDirection.LEFT: (-14.0, -30.0),
+    FaceDirection.UP: (6.0, -42.0),
+    FaceDirection.DOWN: (10.0, -24.0),
+}
 
 
 def _draw_cultist_fallback(surface: pygame.Surface, sx: int, sy: int, player) -> None:
@@ -30,14 +39,6 @@ def _draw_cultist_fallback(surface: pygame.Surface, sx: int, sy: int, player) ->
     pygame.draw.circle(surface, config.COLOR_EYE_GLOW, (sx + 5, sy - 10), 3)
 
 
-def _player_in_attack_pose(player) -> bool:
-    si = player.shoot_interval
-    if si <= 0.02:
-        return False
-    window = min(0.18, max(0.08, si * 0.22))
-    return player.shoot_cooldown > si - window
-
-
 def _draw_player_sprite(
     surface: pygame.Surface,
     sx: int,
@@ -45,42 +46,63 @@ def _draw_player_sprite(
     player,
     idle_surf: pygame.Surface | None,
     walk_frames: list[pygame.Surface] | None,
-    attack_surf: pygame.Surface | None,
-    back_surf: pygame.Surface | None,
-) -> None:
-    """
-    Idle frontal, walk em perfil (espelho), norte = costas, sul = frente;
-    janela curta após disparo = sprite de ataque.
-    """
+) -> pygame.Rect:
+    """Parado: idle. Andando: frames de perfil; espelha ao ir para a esquerda."""
     if idle_surf is None or not walk_frames:
         _draw_cultist_fallback(surface, sx, sy, player)
-        return
+        return pygame.Rect(int(sx - 20), int(sy - 36), 40, 40)
 
-    img: pygame.Surface
-    flip_h = False
-
-    if attack_surf is not None and _player_in_attack_pose(player):
-        img = attack_surf
+    if player.is_walking:
+        idx = player.walk_frame % len(walk_frames)
+        img = walk_frames[idx]
         if not player.facing_right:
-            flip_h = True
-    elif player.is_walking:
-        if player.view_facing == "north" and back_surf is not None:
-            img = back_surf
-        elif player.view_facing == "south":
-            img = idle_surf
-        else:
-            idx = player.walk_frame % len(walk_frames)
-            img = walk_frames[idx]
-            if not player.facing_right:
-                flip_h = True
+            img = pygame.transform.flip(img, True, False)
     else:
         img = idle_surf
 
-    if flip_h:
-        img = pygame.transform.flip(img, True, False)
-
     rect = img.get_rect(midbottom=(int(sx), int(sy + player.radius)))
     surface.blit(img, rect)
+    return rect
+
+
+def _draw_weapon_overlay(
+    surface: pygame.Surface,
+    sx: float,
+    sy: float,
+    player,
+    state: GameState,
+) -> None:
+    w = player.equipped_weapon
+    if w is None:
+        return
+    img = weapon_assets.get_weapon_surface(w.sprite_key)
+    ox, oy = _WEAPON_OFFSETS.get(player.facing_dir, (12.0, -28.0))
+    kick = player.weapon_visual_kick * 11.0
+    adx = state.aim_world_x - player.x
+    ady = state.aim_world_y - player.y
+    dl = math.hypot(adx, ady)
+    if dl > 1e-3:
+        ox += (adx / dl) * kick
+        oy += (ady / dl) * kick
+
+    flip = player.facing_dir == FaceDirection.LEFT or (
+        player.facing_dir in (FaceDirection.UP, FaceDirection.DOWN)
+        and not player.facing_right
+    )
+    if flip:
+        img = pygame.transform.flip(img, True, False)
+
+    body_cy = sy - 22.0
+    rect = img.get_rect(center=(int(sx + ox), int(body_cy + oy)))
+    surface.blit(img, rect)
+
+    if player.weapon_visual_kick > 0.06:
+        flash = img.copy()
+        flash.fill(
+            (255, 245, 210, int(90 * min(1.0, player.weapon_visual_kick))),
+            special_flags=pygame.BLEND_RGBA_MULT,
+        )
+        surface.blit(flash, rect.topleft)
 
 
 def _draw_enemy(surface: pygame.Surface, sx: int, sy: int, enemy) -> None:
@@ -123,12 +145,7 @@ class UIManager:
         self.big_death_font = fonts.gothic_title
         self.hud_font = fonts.body
         self.small_font = fonts.small
-        (
-            self._player_idle,
-            self._player_walk_frames,
-            self._player_attack,
-            self._player_back,
-        ) = load_player_sprites()
+        self._player_idle, self._player_walk_frames = load_player_sprites()
         self.death_restart_rect: pygame.Rect | None = None
         self.death_menu_rect: pygame.Rect | None = None
         self.pause_resume_rect: pygame.Rect | None = None
@@ -143,12 +160,7 @@ class UIManager:
         self.small_font = fonts.small
 
     def reload_player_sprites(self) -> None:
-        (
-            self._player_idle,
-            self._player_walk_frames,
-            self._player_attack,
-            self._player_back,
-        ) = load_player_sprites()
+        self._player_idle, self._player_walk_frames = load_player_sprites()
 
     def draw_world_layer(self, surface: pygame.Surface, state: GameState) -> None:
         cx, cy = state.camera_x, state.camera_y
@@ -168,6 +180,27 @@ class UIManager:
             pygame.draw.circle(surface, (255, 255, 220), (int(osx), int(osy)), 4)
 
         p = state.player
+
+        for e in state.enemies:
+            sx, sy = utils.world_to_screen(e.x, e.y, cx, cy)
+            if -50 < sx < config.VIEWPORT_W + 50 and -50 < sy < config.VIEWPORT_H + 50:
+                _draw_enemy(surface, int(sx), int(sy), e)
+
+        for proj in state.projectiles:
+            sx, sy = utils.world_to_screen(proj.x, proj.y, cx, cy)
+            if -20 < sx < config.VIEWPORT_W + 20:
+                _draw_projectile(surface, int(sx), int(sy), proj.kind)
+
+        for b in state.enemy_bullets:
+            bx, by = utils.world_to_screen(b["x"], b["y"], cx, cy)
+            pygame.draw.circle(surface, (255, 100, 90), (int(bx), int(by)), 5)
+
+        sx, sy = utils.world_to_screen(p.x, p.y, cx, cy)
+        _draw_player_sprite(
+            surface, int(sx), int(sy), p, self._player_idle, self._player_walk_frames
+        )
+        _draw_weapon_overlay(surface, sx, sy, p, state)
+
         for sw in state.melee_swings:
             ang = sw["angle"]
             ha = sw["half_arc"]
@@ -186,32 +219,6 @@ class UIManager:
                 pts.append((cx0 + math.cos(a) * rng, cy0 + math.sin(a) * rng))
             pygame.draw.polygon(surf, (255, 220, 180, 70), pts)
             surface.blit(surf, rect.topleft)
-
-        for e in state.enemies:
-            sx, sy = utils.world_to_screen(e.x, e.y, cx, cy)
-            if -50 < sx < config.VIEWPORT_W + 50 and -50 < sy < config.VIEWPORT_H + 50:
-                _draw_enemy(surface, int(sx), int(sy), e)
-
-        for proj in state.projectiles:
-            sx, sy = utils.world_to_screen(proj.x, proj.y, cx, cy)
-            if -20 < sx < config.VIEWPORT_W + 20:
-                _draw_projectile(surface, int(sx), int(sy), proj.kind)
-
-        for b in state.enemy_bullets:
-            bx, by = utils.world_to_screen(b["x"], b["y"], cx, cy)
-            pygame.draw.circle(surface, (255, 100, 90), (int(bx), int(by)), 5)
-
-        sx, sy = utils.world_to_screen(p.x, p.y, cx, cy)
-        _draw_player_sprite(
-            surface,
-            int(sx),
-            int(sy),
-            p,
-            self._player_idle,
-            self._player_walk_frames,
-            self._player_attack,
-            self._player_back,
-        )
 
         for pt in state.particles:
             psx, psy = utils.world_to_screen(pt["x"], pt["y"], cx, cy)

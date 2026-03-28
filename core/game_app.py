@@ -16,6 +16,8 @@ from systems import upgrade_system
 from scenes.main_menu import MainMenuScene
 from scenes.settings_scene import SettingsScene
 from ui.font_loader import load_game_fonts
+from ui.sprite_assets import clear_enemy_sprite_cache
+from ui.weapon_assets import clear_weapon_sprite_cache
 from ui.ui_manager import UIManager
 
 _log = game_logging.get_logger("app")
@@ -85,7 +87,9 @@ class GameApp:
         self.settings.window_height = h
 
     def _reload_ui_after_video_change(self) -> None:
-        """set_mode invalida fontes no pygame; recarregar após mudar resolução/ecrã."""
+        """set_mode invalida fontes e superfícies convertidas; recarregar tudo."""
+        clear_enemy_sprite_cache()
+        clear_weapon_sprite_cache()
         self.fonts = load_game_fonts()
         vw, vh = config.VIEWPORT_W, config.VIEWPORT_H
         self.main_menu.set_fonts(self.fonts)
@@ -273,6 +277,15 @@ class GameApp:
                     keys[pygame.K_w] or keys[pygame.K_UP]
                 )
                 st.move_player(dx, dy, dt)
+            if (
+                st.death_mode == "alive"
+                and st.player.hp > 0
+                and not st.level_up_paused
+                and not st.game_paused
+            ):
+                mx, my = pygame.mouse.get_pos()
+                st.sync_aim_from_screen(mx, my)
+                st.sync_player_facing()
             st.update(dt)
             if st.death_mode == "await_click":
                 self.scene = AppScene.GAME_OVER

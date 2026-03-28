@@ -7,7 +7,7 @@ from __future__ import annotations
 import random
 from typing import Any, Dict, List
 
-from core import sfx
+from core import sfx, utils
 from entities.enemy import Enemy
 from entities.player import Player
 from entities.projectile import Projectile
@@ -23,6 +23,8 @@ class GameState:
         self.world = ChunkWorld(seed)
 
         self.player = Player(0.0, 0.0)
+        self.aim_world_x = self.player.x + 140.0
+        self.aim_world_y = self.player.y
         self.enemies: List[Enemy] = []
         self.projectiles: List[Projectile] = []
 
@@ -91,6 +93,14 @@ class GameState:
         upgrade_system.refresh_stats(self)
         self._update_camera()
 
+    def sync_aim_from_screen(self, mouse_x: int, mouse_y: int) -> None:
+        self.aim_world_x, self.aim_world_y = utils.screen_to_world(
+            float(mouse_x), float(mouse_y), self.camera_x, self.camera_y
+        )
+
+    def sync_player_facing(self) -> None:
+        self.player.update_facing_toward(self.aim_world_x, self.aim_world_y)
+
     @property
     def spawn_pressure(self) -> float:
         return 1.0 + (self.wave - 1) * 0.042 + self.difficulty_time * 0.009
@@ -148,6 +158,8 @@ class GameState:
 
         if self.level_up_paused:
             return
+
+        self.player.tick_weapon_kick(dt)
 
         self.faith += self.passive_faith_per_second() * dt
         progression_system.tick_mad_prophet(self, dt)
@@ -208,6 +220,8 @@ class GameState:
         self.world = ChunkWorld(self.world_seed)
 
         self.player = Player(0.0, 0.0)
+        self.aim_world_x = self.player.x + 140.0
+        self.aim_world_y = self.player.y
         self.spawn_timer = 0.0
         self.wave = 1
         self.total_kills = 0
