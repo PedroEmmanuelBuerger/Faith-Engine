@@ -81,6 +81,27 @@ class GameState:
             e.update(dt, target)
 
         self._apply_contact_damage(dt)
+        self._update_aura(dt)
+
+    def _update_aura(self, dt: float) -> None:
+        """Pulso de aura: dano em área a cada aura_interval."""
+        p = self.player
+        if p.hp <= 0:
+            return
+        p.aura_timer += dt
+        if p.aura_timer < p.aura_interval:
+            return
+        p.aura_timer = 0.0
+        dmg = p.effective_damage
+        rng = p.effective_range
+        alive: List[Enemy] = []
+        for e in self.enemies:
+            if self._dist_player_enemy(e) <= rng + e.radius:
+                if not e.take_damage(dmg):
+                    alive.append(e)
+            else:
+                alive.append(e)
+        self.enemies = alive
 
     def reset_run(self) -> None:
         """Reinicia posição e inimigos (útil depois para prestige/morte)."""
