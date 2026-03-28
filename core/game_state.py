@@ -86,6 +86,7 @@ class GameState:
 
         self.death_mode = "alive"
         self.death_fade = 0.0
+        self.game_paused = False
 
         upgrade_system.refresh_stats(self)
         self._update_camera()
@@ -129,6 +130,8 @@ class GameState:
         self.camera_y = p.y - config.VIEWPORT_H / 2
 
     def update(self, dt: float) -> None:
+        if self.game_paused:
+            return
         self.difficulty_time += dt
         particle_fx.update_particles(self, dt)
 
@@ -173,9 +176,17 @@ class GameState:
             sfx.play_death()
 
     def move_player(self, dx: float, dy: float, dt: float) -> None:
-        if self.level_up_paused or self.death_mode != "alive" or self.player.hp <= 0:
+        if (
+            self.game_paused
+            or self.level_up_paused
+            or self.death_mode != "alive"
+            or self.player.hp <= 0
+        ):
             return
+        from systems import world_collision
+
         self.player.move(dx, dy, dt, None, None)
+        world_collision.resolve_player_vs_solids(self.player, self.world)
         self._update_camera()
 
     def select_upgrade(self, index: int) -> None:
@@ -215,6 +226,7 @@ class GameState:
         self.damage_flash = 0.0
         self.death_mode = "alive"
         self.death_fade = 0.0
+        self.game_paused = False
         self.upgrade_counts = {}
         if not keep_meta:
             self.prestige_points = 0
