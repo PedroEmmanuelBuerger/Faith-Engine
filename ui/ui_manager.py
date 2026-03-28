@@ -147,9 +147,11 @@ def _draw_weapon_orbit(
 
 
 def _draw_enemy(surface: pygame.Surface, sx: int, sy: int, enemy) -> None:
-    spr = load_enemy_sprite(enemy.kind)
+    spr = load_enemy_sprite(getattr(enemy, "sprite_key", None) or enemy.kind)
     flash = min(1.0, enemy.hit_flash)
-    h = max(28, min(58, int(enemy.radius * 2.7)))
+    h = max(28, min(120, int(enemy.radius * 2.65)))
+    if getattr(enemy, "is_boss", False):
+        h = int(min(140, h * 1.82))
     w = max(20, int(spr.get_width() * h / max(1, spr.get_height())))
     try:
         scaled = pygame.transform.smoothscale(spr, (w, h))
@@ -163,7 +165,13 @@ def _draw_enemy(surface: pygame.Surface, sx: int, sy: int, enemy) -> None:
     scaled = out
     rect = scaled.get_rect(midbottom=(int(sx), int(sy + enemy.radius)))
     surface.blit(scaled, rect)
-    if getattr(enemy, "is_miniboss", False):
+    if getattr(enemy, "is_boss", False):
+        aura = pygame.Surface((w + 36, h + 36), pygame.SRCALPHA)
+        pygame.draw.ellipse(
+            aura, (200, 80, 255, 110), aura.get_rect().inflate(-4, -4), width=6
+        )
+        surface.blit(aura, (rect.x - 18, rect.y - 18))
+    elif getattr(enemy, "is_miniboss", False):
         aura = pygame.Surface((w + 28, h + 28), pygame.SRCALPHA)
         pygame.draw.ellipse(
             aura, (255, 200, 90, 95), aura.get_rect().inflate(-4, -4), width=5
@@ -355,6 +363,7 @@ class UIManager:
 
         screen.blit(world, (int(ox), int(oy)))
         hud.draw_hud(screen, state, self.hud_font, self.small_font)
+        hud.draw_boss_bar(screen, state, self.small_font)
         self.draw_damage_flash(screen, state.damage_flash)
         self.upgrade_menu.draw(
             screen,

@@ -10,6 +10,43 @@ from core import config
 from core.game_state import GameState
 from systems import upgrade_system
 
+_DIFF_LABEL = {"easy": "Fácil", "medium": "Médio", "hard": "Difícil"}
+
+
+def draw_boss_bar(
+    surface: pygame.Surface,
+    state: GameState,
+    small: pygame.font.Font,
+) -> None:
+    if not getattr(state, "in_boss_fight", False):
+        return
+    boss = next(
+        (e for e in state.enemies if getattr(e, "is_boss", False) and e.hp > 0),
+        None,
+    )
+    if boss is None:
+        return
+
+    vw, vh = config.VIEWPORT_W, config.VIEWPORT_H
+    bar_w = min(760, vw - 72)
+    x0 = (vw - bar_w) // 2
+    y0 = vh - 56
+    pygame.draw.rect(surface, (18, 12, 32), (x0, y0, bar_w, 32))
+    frac = max(0.0, min(1.0, getattr(state, "boss_hp_bar_smooth", 1.0)))
+    inner_w = max(0, int(bar_w * frac))
+    if inner_w > 0:
+        pygame.draw.rect(surface, (200, 55, 110), (x0, y0, inner_w, 32))
+        gleam = pygame.Surface((min(inner_w, 120), 32), pygame.SRCALPHA)
+        gleam.fill((255, 200, 220, 55))
+        surface.blit(gleam, (x0, y0))
+    pygame.draw.rect(surface, (255, 210, 235), (x0, y0, bar_w, 32), 2)
+
+    title = small.render(config.BOSS_DISPLAY_NAME.upper(), True, (255, 228, 245))
+    surface.blit(title, (x0 + 10, y0 + 7))
+    hp_txt = f"{int(max(0, boss.hp))} / {int(boss.max_hp)}"
+    ht = small.render(hp_txt, True, (240, 215, 235))
+    surface.blit(ht, (x0 + bar_w - ht.get_width() - 10, y0 + 7))
+
 
 def draw_hud(
     surface: pygame.Surface,
@@ -25,10 +62,11 @@ def draw_hud(
 
     wname, _ = upgrade_system.describe(state.active_weapon_id)
     loadout_icons = " ".join(upgrade_system.icon_for(w) for w in state.weapon_loadout)
+    diff_lbl = _DIFF_LABEL.get(getattr(state, "difficulty", "medium"), "Médio")
     line = (
         f"HP {int(p.hp)}/{int(p.max_hp)}  |  Fé {int(state.faith)}  |  "
         f"Nv {state.level}  |  XP {int(state.xp)}/{int(state.xp_to_next)}  |  "
-        f"Inimigos {len(state.enemies)}  |  Onda {state.wave}"
+        f"Inimigos {len(state.enemies)}  |  Onda {state.wave}  |  {diff_lbl}"
     )
     surface.blit(font.render(line, True, (230, 220, 255)), (12, 10))
     auto_on = state.auto_attack_enabled
@@ -47,9 +85,14 @@ def draw_hud(
         ),
         (12, 52),
     )
+    next_wave = (
+        ""
+        if getattr(state, "in_boss_fight", False)
+        else f"  |  Onda +1 ~{max(0, int(state.wave_timer))}s"
+    )
     surface.blit(
         small.render(
-            f"Pressão de spawn: ×{state.spawn_pressure:.2f}",
+            f"Pressão de spawn: ×{state.spawn_pressure:.2f}{next_wave}",
             True,
             (150, 140, 180),
         ),
