@@ -4,6 +4,7 @@ Culto do Infinito — loop principal (Pygame).
 import pygame
 
 from game_state import GameState
+import upgrades
 
 SCREEN_W, SCREEN_H = 960, 540
 FPS = 60
@@ -16,7 +17,8 @@ def main() -> None:
     pygame.display.set_caption("Culto do Infinito")
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("segoeui", 18)
-    big = pygame.font.SysFont("segoeui", 32, bold=True)
+    big = pygame.font.SysFont("segoeui", 28, bold=True)
+    small = pygame.font.SysFont("segoeui", 16)
 
     state = GameState(SCREEN_W, SCREEN_H)
     running = True
@@ -26,9 +28,13 @@ def main() -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                if state.level_up_paused:
-                    state.acknowledge_level_up_placeholder()
+            if event.type == pygame.KEYDOWN and state.level_up_paused:
+                if event.key == pygame.K_1:
+                    state.select_upgrade(0)
+                elif event.key == pygame.K_2:
+                    state.select_upgrade(1)
+                elif event.key == pygame.K_3:
+                    state.select_upgrade(2)
 
         keys = pygame.key.get_pressed()
         p = state.player
@@ -61,12 +67,31 @@ def main() -> None:
 
         if state.level_up_paused:
             ov = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            ov.fill((0, 0, 0, 170))
+            ov.fill((0, 0, 0, 175))
             screen.blit(ov, (0, 0))
-            t1 = big.render("EVOLUÇÃO", True, (255, 230, 120))
-            t2 = font.render("Espaço: absorver energia (+HP máx / cura)", True, (220, 220, 240))
-            screen.blit(t1, t1.get_rect(center=(SCREEN_W // 2, SCREEN_H // 2 - 30)))
-            screen.blit(t2, t2.get_rect(center=(SCREEN_W // 2, SCREEN_H // 2 + 20)))
+            title = big.render("RITUAL DE ASCENSÃO", True, (255, 230, 140))
+            screen.blit(title, title.get_rect(center=(SCREEN_W // 2, 80)))
+            hint = small.render("Teclas 1, 2 ou 3 para escolher o dom", True, (200, 200, 220))
+            screen.blit(hint, hint.get_rect(center=(SCREEN_W // 2, 118)))
+            y = 160
+            for i, uid in enumerate(state.upgrade_choice_ids):
+                name, desc = upgrades.describe(uid)
+                card = pygame.Rect(80 + i * 280, y, 250, 200)
+                pygame.draw.rect(screen, (48, 36, 72), card, border_radius=12)
+                pygame.draw.rect(screen, (140, 110, 200), card, 2, border_radius=12)
+                key_lbl = small.render(f"[{i + 1}]", True, (255, 220, 160))
+                screen.blit(key_lbl, (card.x + 12, card.y + 10))
+                nl = small.render(name, True, (255, 255, 255))
+                screen.blit(nl, (card.x + 12, card.y + 36))
+                stacks = state.upgrade_counts.get(uid, 0)
+                st = small.render(f"Pilha: x{stacks + 1} (próximo)", True, (200, 190, 230))
+                screen.blit(st, (card.x + 12, card.y + 62))
+                wrapped = desc
+                bl = small.render(wrapped, True, (210, 200, 235))
+                screen.blit(bl, (card.x + 12, card.y + 92))
+            if state.synergy_zeal_active:
+                syn = small.render("Sinergia ativa: Canto + Ritual amplificam o dano.", True, (255, 180, 200))
+                screen.blit(syn, syn.get_rect(center=(SCREEN_W // 2, SCREEN_H - 48)))
 
         pygame.display.flip()
 
