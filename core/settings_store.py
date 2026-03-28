@@ -50,7 +50,12 @@ def load_settings(path: str = DEFAULT_PATH) -> Settings:
         )
         s.clamp_volume()
         return s
-    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+    except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
+        from core import game_logging
+
+        game_logging.get_logger("settings").warning(
+            "Falha ao carregar definições; a usar valores por defeito: %s", e
+        )
         return default_settings()
 
 

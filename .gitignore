@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 .venv/
+logs/*.log
+user_settings.json
