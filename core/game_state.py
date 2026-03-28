@@ -5,7 +5,7 @@ A lógica pesada fica em systems/; aqui orquestramos o tick.
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from core import config, utils
 from entities.enemy import Enemy
@@ -59,16 +59,36 @@ class GameState:
 
         self.difficulty_time = 0.0
 
-        # Morte: fade + clique para recomeçar
-        self.death_mode = "alive"  # alive | fading | await_click
+        self.melee_swings: List[dict] = []
+        self.whip_strikes: List[dict] = []
+        self.ground_pools: List[dict] = []
+        self.pending_radial_pulses: List[dict] = []
+        self.orbital_phase = 0.0
+        self.orbital_debug: List[tuple[float, float]] = []
+        self.enemy_bullets: List[dict[str, Any]] = []
+
+        self.active_weapon_id = "w_dark_bolt"
+        self.weapon_damage_mult = 1.0
+
+        self.synergy_inferno = False
+        self.synergy_explosion_radius_mult = 1.0
+        self.synergy_toxic_baptism = False
+        self.synergy_pool_dps_mult = 1.0
+        self.synergy_pool_duration_bonus = 1.0
+        self.synergy_orb_velocity = 1.0
+        self.synergy_chain_echo = False
+        self.chain_bonus_jumps = 0
+
+        self.death_mode = "alive"
         self.death_fade = 0.0
 
         upgrade_system.refresh_stats(self)
         self._update_camera()
 
     @property
-    def difficulty_mult(self) -> float:
-        return 1.0 + self.difficulty_time * 0.018
+    def spawn_pressure(self) -> float:
+        """Só aumenta número/cadência de spawns — não altera HP/dano dos inimigos."""
+        return 1.0 + (self.wave - 1) * 0.042 + self.difficulty_time * 0.009
 
     def passive_faith_per_second(self) -> float:
         base = 0.35 * self.followers
@@ -110,12 +130,6 @@ class GameState:
             max(0, config.WORLD_H - config.VIEWPORT_H),
         )
 
-    def on_enemy_killed(self, enemy: Enemy) -> None:
-        progression_system.grant_xp(self, enemy.xp_value)
-        self.total_kills += 1
-        if self.total_kills % 18 == 0:
-            self.wave = min(99, self.wave + 1)
-
     def update(self, dt: float) -> None:
         self.difficulty_time += dt
         particle_fx.update_particles(self, dt)
@@ -141,14 +155,12 @@ class GameState:
         if self.spawn_timer <= 0:
             spawn_system.spawn_enemy(self)
             self.spawn_timer = max(
-                0.35,
-                self.spawn_interval
-                / (1.0 + self.wave * 0.04 + self.difficulty_time * 0.02),
+                0.28,
+                self.spawn_interval / self.spawn_pressure,
             )
 
-        target = (self.player.x, self.player.y)
         for e in self.enemies:
-            e.update(dt, target)
+            e.update(dt, self)
 
         combat_system.update_contact_damage(self, dt)
         combat_system.update_projectiles(self, dt)
@@ -172,6 +184,13 @@ class GameState:
     def reset_run(self, keep_meta: bool = False) -> None:
         self.enemies.clear()
         self.projectiles.clear()
+        self.enemy_bullets.clear()
+        self.melee_swings.clear()
+        self.whip_strikes.clear()
+        self.ground_pools.clear()
+        self.pending_radial_pulses.clear()
+        self.orbital_phase = 0.0
+        self.orbital_debug.clear()
         self._enemy_hit_timer.clear()
         self.player = Player(config.WORLD_W / 2, config.WORLD_H / 2)
         self.spawn_timer = 0.0
