@@ -24,16 +24,24 @@ def draw_hud(
     pygame.draw.rect(surface, (100, 180, 130), (12, 38, int(bar_w * xp_frac), 8))
 
     wname, _ = upgrade_system.describe(state.active_weapon_id)
+    loadout_icons = " ".join(upgrade_system.icon_for(w) for w in state.weapon_loadout)
     line = (
         f"HP {int(p.hp)}/{int(p.max_hp)}  |  Fé {int(state.faith)}  |  "
         f"Nv {state.level}  |  XP {int(state.xp)}/{int(state.xp_to_next)}  |  "
         f"Inimigos {len(state.enemies)}  |  Onda {state.wave}"
     )
     surface.blit(font.render(line, True, (230, 220, 255)), (12, 10))
+    auto_on = state.auto_attack_enabled
+    auto_lbl = "AUTO" if auto_on else "MANUAL"
+    auto_col = (150, 255, 170) if auto_on else (190, 175, 215)
+    bx = config.VIEWPORT_W - 132
+    pygame.draw.rect(surface, (36, 30, 52), (bx, 8, 124, 24))
+    pygame.draw.rect(surface, auto_col, (bx, 8, 124, 24), 2)
+    surface.blit(small.render(f"Mira: {auto_lbl}", True, auto_col), (bx + 8, 11))
     surface.blit(
         small.render(
-            f"Arma: {upgrade_system.icon_for(state.active_weapon_id)} {wname}  |  "
-            "Clique dir.: Fé  |  WASD: mover",
+            f"Armas [{loadout_icons}]  ·  foco {upgrade_system.icon_for(state.active_weapon_id)} {wname}  |  "
+            "Dir.: auto-ataque  |  Meio: Fé  |  WASD",
             True,
             (170, 160, 200),
         ),

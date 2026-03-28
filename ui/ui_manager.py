@@ -6,26 +6,48 @@ from __future__ import annotations
 
 import math
 import random
+from pathlib import Path
 from typing import Tuple
 
 import pygame
 
 from core import config, utils
 from core.game_state import GameState
+from entities.pickup import PICKUP_BIBLE
+from entities.weapon import get_weapon
 from ui import environment, hud
 from ui.font_loader import GameFonts
-from entities.player import FaceDirection
 from ui.player_sprites import load_player_sprites
 from ui.sprite_assets import load_enemy_sprite
 from ui.upgrade_menu import UpgradeMenu
 from ui import weapon_assets
 
-_WEAPON_OFFSETS: dict[FaceDirection, tuple[float, float]] = {
-    FaceDirection.RIGHT: (14.0, -30.0),
-    FaceDirection.LEFT: (-14.0, -30.0),
-    FaceDirection.UP: (6.0, -42.0),
-    FaceDirection.DOWN: (10.0, -24.0),
-}
+_WEAPON_ORBIT_RADIUS = 56.0
+_BIBLE_SPRITE: pygame.Surface | None = None
+
+
+def clear_pickup_sprite_cache() -> None:
+    global _BIBLE_SPRITE
+    _BIBLE_SPRITE = None
+
+
+def _bible_sprite() -> pygame.Surface:
+    global _BIBLE_SPRITE
+    if _BIBLE_SPRITE is not None:
+        return _BIBLE_SPRITE
+    path = Path(__file__).resolve().parent.parent / "assets" / "sprites" / "pickups" / "bible.png"
+    if path.is_file():
+        try:
+            _BIBLE_SPRITE = pygame.image.load(str(path)).convert_alpha()
+        except (pygame.error, OSError):
+            _BIBLE_SPRITE = None
+    if _BIBLE_SPRITE is None:
+        s = pygame.Surface((36, 44), pygame.SRCALPHA)
+        pygame.draw.rect(s, (90, 70, 55), (4, 6, 28, 32), border_radius=2)
+        pygame.draw.rect(s, (220, 200, 150), (8, 10, 20, 24))
+        pygame.draw.line(s, (60, 50, 45), (18, 12), (18, 32), 2)
+        _BIBLE_SPRITE = s
+    return _BIBLE_SPRITE
 
 
 def _draw_cultist_fallback(surface: pygame.Surface, sx: int, sy: int, player) -> None:
@@ -65,44 +87,58 @@ def _draw_player_sprite(
     return rect
 
 
-def _draw_weapon_overlay(
+def _draw_pickups(
+    surface: pygame.Surface,
+    state: GameState,
+    cx: float,
+    cy: float,
+) -> None:
+    spr = _bible_sprite()
+    for pu in state.pickups:
+        if pu["kind"] != PICKUP_BIBLE:
+            continue
+        px, py = utils.world_to_screen(pu["x"], pu["y"], cx, cy)
+        if px < -80 or px > config.VIEWPORT_W + 80 or py < -80 or py > config.VIEWPORT_H + 80:
+            continue
+        pulse = 1.0 + 0.14 * math.sin(pu.get("pulse", 0.0))
+        r = int(pu["r"] * pulse)
+        gr = max(r + 14, 28)
+        glow = pygame.Surface((gr * 2, gr * 2), pygame.SRCALPHA)
+        pygame.draw.circle(glow, (255, 220, 130, 38), (gr, gr), gr)
+        pygame.draw.circle(glow, (255, 245, 200, 100), (gr, gr), max(6, r // 2))
+        surface.blit(glow, (int(px - gr), int(py - gr)))
+        rect = spr.get_rect(center=(int(px), int(py)))
+        surface.blit(spr, rect)
+
+
+def _draw_weapon_orbit(
     surface: pygame.Surface,
     sx: float,
     sy: float,
     player,
     state: GameState,
 ) -> None:
-    w = player.equipped_weapon
-    if w is None:
+    load = state.weapon_loadout
+    if not load:
         return
-    img = weapon_assets.get_weapon_surface(w.sprite_key)
-    ox, oy = _WEAPON_OFFSETS.get(player.facing_dir, (12.0, -28.0))
-    kick = player.weapon_visual_kick * 11.0
-    adx = state.aim_world_x - player.x
-    ady = state.aim_world_y - player.y
-    dl = math.hypot(adx, ady)
-    if dl > 1e-3:
-        ox += (adx / dl) * kick
-        oy += (ady / dl) * kick
-
-    flip = player.facing_dir == FaceDirection.LEFT or (
-        player.facing_dir in (FaceDirection.UP, FaceDirection.DOWN)
-        and not player.facing_right
-    )
-    if flip:
-        img = pygame.transform.flip(img, True, False)
-
-    body_cy = sy - 22.0
-    rect = img.get_rect(center=(int(sx + ox), int(body_cy + oy)))
-    surface.blit(img, rect)
-
-    if player.weapon_visual_kick > 0.06:
-        flash = img.copy()
-        flash.fill(
-            (255, 245, 210, int(90 * min(1.0, player.weapon_visual_kick))),
-            special_flags=pygame.BLEND_RGBA_MULT,
-        )
-        surface.blit(flash, rect.topleft)
+    n = len(load)
+    body_cy = sy - 20.0
+    kick = min(1.0, player.weapon_visual_kick) * 9.0
+    for i, wid in enumerate(load):
+        w = get_weapon(wid)
+        ang = state.weapon_orbit_phase + (math.tau / n) * i
+        ox = math.cos(ang) * _WEAPON_ORBIT_RADIUS
+        oy = math.sin(ang) * _WEAPON_ORBIT_RADIUS * 0.9
+        img = weapon_assets.get_weapon_surface(w.sprite_key)
+        rect = img.get_rect(center=(int(sx + ox + kick * 0.08), int(body_cy + oy)))
+        surface.blit(img, rect)
+        if player.weapon_visual_kick > 0.06:
+            flash = img.copy()
+            flash.fill(
+                (255, 245, 210, int(75 * min(1.0, player.weapon_visual_kick))),
+                special_flags=pygame.BLEND_RGBA_MULT,
+            )
+            surface.blit(flash, rect.topleft)
 
 
 def _draw_enemy(surface: pygame.Surface, sx: int, sy: int, enemy) -> None:
@@ -196,10 +232,11 @@ class UIManager:
             pygame.draw.circle(surface, (255, 100, 90), (int(bx), int(by)), 5)
 
         sx, sy = utils.world_to_screen(p.x, p.y, cx, cy)
+        _draw_pickups(surface, state, cx, cy)
         _draw_player_sprite(
             surface, int(sx), int(sy), p, self._player_idle, self._player_walk_frames
         )
-        _draw_weapon_overlay(surface, sx, sy, p, state)
+        _draw_weapon_orbit(surface, sx, sy, p, state)
 
         for sw in state.melee_swings:
             ang = sw["angle"]
