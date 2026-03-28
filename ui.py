@@ -10,6 +10,16 @@ import upgrades
 from game_state import GameState
 
 
+def draw_particles(surface: pygame.Surface, state: GameState) -> None:
+    """Partículas ao eliminar inimigos."""
+    for pt in state.particles:
+        alpha = max(40, min(255, int(255 * min(1.0, pt["life"] / 0.5))))
+        c = pt["col"]
+        px = pygame.Surface((8, 8), pygame.SRCALPHA)
+        px.fill((*c, alpha))
+        surface.blit(px, (int(pt["x"] - 4), int(pt["y"] - 4)))
+
+
 def draw_world(surface: pygame.Surface, state: GameState) -> None:
     """Inimigos e jogador."""
     for e in state.enemies:
@@ -94,3 +104,12 @@ def draw_level_up(
             (255, 180, 200),
         )
         surface.blit(syn, syn.get_rect(center=(screen_w // 2, screen_h - 48)))
+
+
+def draw_damage_flash(surface: pygame.Surface, screen_w: int, screen_h: int, amount: float) -> None:
+    """Vermelho translúcido ao receber dano."""
+    if amount <= 0.02:
+        return
+    red = pygame.Surface((screen_w, screen_h), pygame.SRCALPHA)
+    red.fill((180, 40, 60, int(120 * amount)))
+    surface.blit(red, (0, 0))

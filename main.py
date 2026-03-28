@@ -1,6 +1,8 @@
 """
 Culto do Infinito — loop principal (Pygame).
 """
+import random
+
 import pygame
 
 from game_state import GameState
@@ -50,10 +52,21 @@ def main() -> None:
             )
             p.move(dx, dy, dt, SCREEN_W, SCREEN_H)
         state.update(dt)
+        state.update_particles_only(dt)
 
-        screen.fill(BG_COLOR)
-        ui.draw_world(screen, state)
+        ox = oy = 0.0
+        if state.screen_shake > 0.1:
+            ox = random.uniform(-state.screen_shake, state.screen_shake)
+            oy = random.uniform(-state.screen_shake, state.screen_shake)
+
+        world = pygame.Surface((SCREEN_W, SCREEN_H))
+        world.fill(BG_COLOR)
+        ui.draw_world(world, state)
+        ui.draw_particles(world, state)
+        screen.blit(world, (int(ox), int(oy)))
+
         ui.draw_hud(screen, state, font, small)
+        ui.draw_damage_flash(screen, SCREEN_W, SCREEN_H, state.damage_flash)
         if state.level_up_paused:
             ui.draw_level_up(screen, state, big, small, SCREEN_W, SCREEN_H)
 

@@ -53,6 +53,11 @@ class GameState:
         self.contact_cooldown = 0.6
         self._enemy_hit_timer: dict[int, float] = {}
 
+        # Feedback visual
+        self.particles: List[dict] = []
+        self.screen_shake = 0.0
+        self.damage_flash = 0.0
+
         upgrades.refresh_stats(self)
 
     def passive_faith_per_second(self) -> float:
@@ -103,6 +108,8 @@ class GameState:
                 if eid not in self._enemy_hit_timer or self._enemy_hit_timer[eid] <= 0:
                     p.take_damage(e.damage)
                     self._enemy_hit_timer[eid] = self.contact_cooldown
+                    self.screen_shake = max(self.screen_shake, 8.0)
+                    self.damage_flash = min(0.85, self.damage_flash + 0.35)
 
     def _tick_mad_prophet(self, dt: float) -> None:
         self._prophet_dmg_left = max(0.0, self._prophet_dmg_left - dt)
@@ -199,11 +206,44 @@ class GameState:
             if self._dist_player_enemy(e) <= rng + e.radius:
                 if e.take_damage(dmg):
                     self._grant_xp(e.xp_value)
+                    self._spawn_death_particles(e.x, e.y)
                 else:
                     alive.append(e)
             else:
                 alive.append(e)
         self.enemies = alive
+
+    def _spawn_death_particles(self, x: float, y: float, n: int = 10) -> None:
+        for _ in range(n):
+            ang = random.uniform(0, math.tau)
+            spd = random.uniform(40, 160)
+            self.particles.append(
+                {
+                    "x": x,
+                    "y": y,
+                    "vx": math.cos(ang) * spd,
+                    "vy": math.sin(ang) * spd,
+                    "life": random.uniform(0.25, 0.55),
+                    "col": random.choice(
+                        ((255, 200, 120), (255, 120, 160), (200, 160, 255))
+                    ),
+                }
+            )
+
+    def update_particles_only(self, dt: float) -> None:
+        """Partículas e decaimento de FX (sempre roda, inclusive na pausa de nível)."""
+        self.damage_flash = max(0.0, self.damage_flash - dt * 1.1)
+        self.screen_shake = max(0.0, self.screen_shake - dt * 22)
+        newp: List[dict] = []
+        for pt in self.particles:
+            pt["life"] -= dt
+            if pt["life"] <= 0:
+                continue
+            pt["x"] += pt["vx"] * dt
+            pt["y"] += pt["vy"] * dt
+            pt["vy"] += 180 * dt
+            newp.append(pt)
+        self.particles = newp
 
     def reset_run(self, keep_meta: bool = False) -> None:
         self.enemies.clear()
@@ -220,6 +260,9 @@ class GameState:
         self.mad_prophet_timer = 0.0
         self._prophet_dmg_left = 0.0
         self._prophet_rng_left = 0.0
+        self.particles.clear()
+        self.screen_shake = 0.0
+        self.damage_flash = 0.0
         if not keep_meta:
             self.upgrade_counts = {}
             self.prestige_points = 0
