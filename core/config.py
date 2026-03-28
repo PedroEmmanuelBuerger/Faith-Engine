@@ -23,6 +23,10 @@ SPAWN_INTERVAL_BASE = 1.65
 
 GAME_TITLE = "Culto do Infinito"
 
+# Chefe de marco (ondas 5, 10, 15…)
+BOSS_DISPLAY_NAME = "Hierofante do Véu"
+WAVE_ADVANCE_INTERVAL_BASE = 52.0
+
 # Paleta gótica / igreja
 COLOR_VOID = (14, 10, 22)
 COLOR_STONE_DARK = (38, 34, 52)
