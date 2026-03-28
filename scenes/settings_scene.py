@@ -67,10 +67,13 @@ class SettingsScene:
     def _set_volume_from_x(self, mx: int) -> None:
         if not self._slider_rect:
             return
-        r = self._slider_rect
-        t = (mx - r.x) / max(1, r.w)
-        self.settings.master_volume = max(0.0, min(1.0, t))
-        self._on_apply()
+        try:
+            r = self._slider_rect
+            t = (mx - r.x) / max(1, r.w)
+            self.settings.master_volume = max(0.0, min(1.0, float(t)))
+            self._on_apply()
+        except (TypeError, ValueError, ArithmeticError):
+            pass
 
     def draw(self, surface: pygame.Surface) -> None:
         surface.fill((18, 14, 28))
