@@ -4,7 +4,7 @@ Culto do Infinito — loop principal (Pygame).
 import pygame
 
 from game_state import GameState
-import upgrades
+import ui
 
 SCREEN_W, SCREEN_H = 960, 540
 FPS = 60
@@ -52,51 +52,10 @@ def main() -> None:
         state.update(dt)
 
         screen.fill(BG_COLOR)
-        for e in state.enemies:
-            pygame.draw.circle(screen, (200, 80, 90), (int(e.x), int(e.y)), int(e.radius))
-        pygame.draw.circle(screen, (200, 180, 255), (int(p.x), int(p.y)), p.radius)
-
-        xp_frac = min(1.0, state.xp / max(1.0, state.xp_to_next))
-        bar_w = 220
-        pygame.draw.rect(screen, (40, 32, 55), (12, 36, bar_w, 10))
-        pygame.draw.rect(screen, (120, 200, 140), (12, 36, int(bar_w * xp_frac), 10))
-
-        hud = font.render(
-            f"HP {int(p.hp)}/{int(p.max_hp)}  |  Fé {int(state.faith)}  |  Nv {state.level}  |  XP {int(state.xp)}/{int(state.xp_to_next)}  |  Inimigos: {len(state.enemies)}  |  Onda {state.wave}",
-            True,
-            (230, 220, 255),
-        )
-        screen.blit(hud, (12, 10))
-        sub = small.render("Clique esquerdo: ganhar Fé", True, (180, 170, 210))
-        screen.blit(sub, (12, 52))
-
+        ui.draw_world(screen, state)
+        ui.draw_hud(screen, state, font, small)
         if state.level_up_paused:
-            ov = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            ov.fill((0, 0, 0, 175))
-            screen.blit(ov, (0, 0))
-            title = big.render("RITUAL DE ASCENSÃO", True, (255, 230, 140))
-            screen.blit(title, title.get_rect(center=(SCREEN_W // 2, 80)))
-            hint = small.render("Teclas 1, 2 ou 3 para escolher o dom", True, (200, 200, 220))
-            screen.blit(hint, hint.get_rect(center=(SCREEN_W // 2, 118)))
-            y = 160
-            for i, uid in enumerate(state.upgrade_choice_ids):
-                name, desc = upgrades.describe(uid)
-                card = pygame.Rect(80 + i * 280, y, 250, 200)
-                pygame.draw.rect(screen, (48, 36, 72), card, border_radius=12)
-                pygame.draw.rect(screen, (140, 110, 200), card, 2, border_radius=12)
-                key_lbl = small.render(f"[{i + 1}]", True, (255, 220, 160))
-                screen.blit(key_lbl, (card.x + 12, card.y + 10))
-                nl = small.render(name, True, (255, 255, 255))
-                screen.blit(nl, (card.x + 12, card.y + 36))
-                stacks = state.upgrade_counts.get(uid, 0)
-                st = small.render(f"Pilha: x{stacks + 1} (próximo)", True, (200, 190, 230))
-                screen.blit(st, (card.x + 12, card.y + 62))
-                wrapped = desc
-                bl = small.render(wrapped, True, (210, 200, 235))
-                screen.blit(bl, (card.x + 12, card.y + 92))
-            if state.synergy_zeal_active:
-                syn = small.render("Sinergia ativa: Canto + Ritual amplificam o dano.", True, (255, 180, 200))
-                screen.blit(syn, syn.get_rect(center=(SCREEN_W // 2, SCREEN_H - 48)))
+            ui.draw_level_up(screen, state, big, small, SCREEN_W, SCREEN_H)
 
         pygame.display.flip()
 
