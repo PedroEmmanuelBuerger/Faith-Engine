@@ -24,6 +24,7 @@ class GameState:
         self.spawn_timer = 0.0
         self.spawn_interval = 2.2
         self.wave = 1
+        self.total_kills = 0
 
         # Progressão
         self.xp = 0.0
@@ -236,6 +237,9 @@ class GameState:
                 if e.take_damage(dmg):
                     self._grant_xp(e.xp_value)
                     self._spawn_death_particles(e.x, e.y)
+                    self.total_kills += 1
+                    if self.total_kills % 18 == 0:
+                        self.wave = min(99, self.wave + 1)
                 else:
                     alive.append(e)
             else:
@@ -280,6 +284,7 @@ class GameState:
         self.player = Player(self.width / 2, self.height / 2)
         self.spawn_timer = 0.0
         self.wave = 1
+        self.total_kills = 0
         self.xp = 0.0
         self.level = 1
         self._recalc_xp_to_next()
