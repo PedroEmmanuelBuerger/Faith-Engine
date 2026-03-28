@@ -33,13 +33,18 @@ def main() -> None:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if not state.level_up_paused and state.player.hp > 0:
                     state.add_click_faith()
-            if event.type == pygame.KEYDOWN and state.level_up_paused:
-                if event.key == pygame.K_1:
-                    state.select_upgrade(0)
-                elif event.key == pygame.K_2:
-                    state.select_upgrade(1)
-                elif event.key == pygame.K_3:
-                    state.select_upgrade(2)
+            if event.type == pygame.KEYDOWN:
+                if state.level_up_paused:
+                    if event.key == pygame.K_1:
+                        state.select_upgrade(0)
+                    elif event.key == pygame.K_2:
+                        state.select_upgrade(1)
+                    elif event.key == pygame.K_3:
+                        state.select_upgrade(2)
+                elif event.key == pygame.K_p:
+                    state.do_prestige()
+                elif event.key == pygame.K_r and state.player.hp <= 0:
+                    state.reset_run(keep_meta=True)
 
         keys = pygame.key.get_pressed()
         p = state.player
@@ -65,7 +70,7 @@ def main() -> None:
         ui.draw_particles(world, state)
         screen.blit(world, (int(ox), int(oy)))
 
-        ui.draw_hud(screen, state, font, small)
+        ui.draw_hud(screen, state, font, small, SCREEN_H)
         ui.draw_damage_flash(screen, SCREEN_W, SCREEN_H, state.damage_flash)
         if state.level_up_paused:
             ui.draw_level_up(screen, state, big, small, SCREEN_W, SCREEN_H)

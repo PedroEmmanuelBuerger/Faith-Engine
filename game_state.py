@@ -72,6 +72,21 @@ class GameState:
         """Clique: injeção manual de fé (loop viciante)."""
         self.faith += 1.2 * self.faith_rate_multiplier
 
+    def can_prestige(self) -> bool:
+        """Requer fé acumulada e partida fora do menu de nível."""
+        return self.faith >= 400.0 and not self.level_up_paused
+
+    def do_prestige(self) -> bool:
+        """
+        Reinicia a corrida mantendo pontos de transcendência.
+        Cada ponto concede +12% geração de fé permanente nesta sessão.
+        """
+        if not self.can_prestige():
+            return False
+        self.prestige_points += 1
+        self.reset_run(keep_meta=True)
+        return True
+
     @property
     def difficulty_mult(self) -> float:
         """Aumenta HP/dano dos inimigos com o tempo sobrevivido."""
@@ -278,8 +293,9 @@ class GameState:
         self.particles.clear()
         self.screen_shake = 0.0
         self.damage_flash = 0.0
+        # Nova corrida: sempre zera o baralho atual; meta só preserva transcendência.
+        self.upgrade_counts = {}
         if not keep_meta:
-            self.upgrade_counts = {}
             self.prestige_points = 0
             self.prestige_faith_mult = 1.0
         else:

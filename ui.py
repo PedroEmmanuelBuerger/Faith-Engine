@@ -35,6 +35,7 @@ def draw_hud(
     state: GameState,
     font: pygame.font.Font,
     small: pygame.font.Font,
+    screen_h: int,
 ) -> None:
     """Barras e texto principal."""
     p = state.player
@@ -60,6 +61,18 @@ def draw_hud(
         ),
         (240, 52),
     )
+    trans = f"Transcendência: {state.prestige_points}  (+{int(state.prestige_faith_mult * 100 - 100)}% Fé)"
+    surface.blit(small.render(trans, True, (220, 200, 160)), (480, 52))
+    if state.can_prestige():
+        surface.blit(
+            small.render("[P] Transcender (≥400 Fé) — nova corrida, bônus permanente", True, (255, 220, 140)),
+            (12, screen_h - 28),
+        )
+    if state.player.hp <= 0:
+        surface.blit(
+            small.render("Corpo quebrado. [R] Reencarnar (mantém Transcendência)", True, (255, 140, 150)),
+            (12, screen_h - 52),
+        )
 
     # Lista compacta de upgrades ativos
     y = 72
