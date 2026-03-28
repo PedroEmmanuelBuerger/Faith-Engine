@@ -214,7 +214,8 @@ def _blood_pact_tick(state: GameState, dt: float) -> None:
     if stacks <= 0:
         return
     drain = 0.35 * stacks * dt
-    state.player.hp = max(1.0, state.player.hp - drain)
+    # Sem chão em 1: o dreno pode matar; um tecto em 1 após contacto no mesmo frame impedia a morte.
+    state.player.hp = max(0.0, state.player.hp - drain)
 
 
 def _update_enemy_bullets(state: GameState, dt: float) -> None:
