@@ -22,6 +22,13 @@ class GameState:
         self.spawn_interval = 2.2
         self.wave = 1
 
+        # Progressão
+        self.xp = 0.0
+        self.level = 1
+        self.level_up_paused = False
+        self.xp_to_next = 30.0
+        self._recalc_xp_to_next()
+
         # Contato: intervalo entre danos do mesmo inimigo
         self.contact_cooldown = 0.6
         self._enemy_hit_timer: dict[int, float] = {}
@@ -59,7 +66,7 @@ class GameState:
         for k in to_remove_keys:
             del self._enemy_hit_timer[k]
 
-        for i, e in enumerate(self.enemies):
+        for e in self.enemies:
             d = self._dist_player_enemy(e)
             if d <= e.radius + p.radius:
                 eid = id(e)
@@ -68,7 +75,7 @@ class GameState:
                     self._enemy_hit_timer[eid] = self.contact_cooldown
 
     def update(self, dt: float) -> None:
-        if self.player.hp <= 0:
+        if self.player.hp <= 0 or self.level_up_paused:
             return
 
         self.spawn_timer -= dt
@@ -83,10 +90,39 @@ class GameState:
         self._apply_contact_damage(dt)
         self._update_aura(dt)
 
+    def _recalc_xp_to_next(self) -> None:
+        """Curva de XP por nível (exponencial suave)."""
+        self.xp_to_next = int(28 * (1.2 ** (self.level - 1)))
+
+    def _grant_xp(self, amount: float) -> None:
+        if self.level_up_paused or self.player.hp <= 0:
+            return
+        self.xp += amount
+        self._try_level_up()
+
+    def _try_level_up(self) -> None:
+        """Sobe um nível por vez e pausa até o jogador resolver a escolha."""
+        if self.xp < self.xp_to_next:
+            return
+        self.xp -= self.xp_to_next
+        self.level += 1
+        self._recalc_xp_to_next()
+        self.level_up_paused = True
+
+    def acknowledge_level_up_placeholder(self) -> None:
+        """Commit 4: bônus simples até o sistema de cartas entrar."""
+        if not self.level_up_paused:
+            return
+        self.level_up_paused = False
+        self.player.max_hp += 5
+        self.player.hp = min(self.player.hp + 15, self.player.max_hp)
+        # Se ainda houver XP suficiente, enfileira outro nível.
+        self._try_level_up()
+
     def _update_aura(self, dt: float) -> None:
         """Pulso de aura: dano em área a cada aura_interval."""
         p = self.player
-        if p.hp <= 0:
+        if p.hp <= 0 or self.level_up_paused:
             return
         p.aura_timer += dt
         if p.aura_timer < p.aura_interval:
@@ -97,7 +133,9 @@ class GameState:
         alive: List[Enemy] = []
         for e in self.enemies:
             if self._dist_player_enemy(e) <= rng + e.radius:
-                if not e.take_damage(dmg):
+                if e.take_damage(dmg):
+                    self._grant_xp(e.xp_value)
+                else:
                     alive.append(e)
             else:
                 alive.append(e)
@@ -110,3 +148,7 @@ class GameState:
         self.player = Player(self.width / 2, self.height / 2)
         self.spawn_timer = 0.0
         self.wave = 1
+        self.xp = 0.0
+        self.level = 1
+        self._recalc_xp_to_next()
+        self.level_up_paused = False
