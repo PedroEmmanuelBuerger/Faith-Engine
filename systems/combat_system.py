@@ -161,9 +161,9 @@ def update_projectiles(state: GameState, dt: float) -> None:
     from systems import weapon_system
 
     p = state.player
-    p.shoot_cooldown = max(0.0, p.shoot_cooldown - dt)
 
-    weapon_system.try_primary_weapon(state)
+    weapon_system.tick_weapon_cooldowns(state, dt)
+    weapon_system.try_fire_all_weapons(state)
     weapon_system.update_melee_swings(state, dt)
     weapon_system.update_whip_strikes(state, dt)
     weapon_system.update_radial_pulse_visual(state, dt)

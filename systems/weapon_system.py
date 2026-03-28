@@ -1,5 +1,5 @@
 """
-Armas primárias: disparo delegado a entities.weapon.Weapon; mira ao rato (mundo).
+Armas: até 3 no loadout, cooldowns independentes, mira rato ou auto (inimigo visível mais próximo).
 """
 
 from __future__ import annotations
@@ -40,7 +40,6 @@ def _enemy_on_screen(state: GameState, e: Enemy) -> bool:
 
 
 def _direction_from_mouse(state: GameState) -> Tuple[float, float]:
-    """Vetor unitário do jogador para a mira em mundo."""
     p = state.player
     dx = state.aim_world_x - p.x
     dy = state.aim_world_y - p.y
@@ -50,13 +49,32 @@ def _direction_from_mouse(state: GameState) -> Tuple[float, float]:
     return dx / d, dy / d
 
 
+def _direction_nearest_visible(state: GameState) -> Tuple[float, float]:
+    p = state.player
+    visible = [e for e in state.enemies if _enemy_on_screen(state, e)]
+    if not visible:
+        return _direction_from_mouse(state)
+    best = min(visible, key=lambda e: (e.x - p.x) ** 2 + (e.y - p.y) ** 2)
+    dx, dy = best.x - p.x, best.y - p.y
+    d = math.hypot(dx, dy)
+    if d < 1e-3:
+        return _direction_from_mouse(state)
+    return dx / d, dy / d
+
+
+def _aim_direction(state: GameState) -> Tuple[float, float]:
+    if state.auto_attack_enabled:
+        return _direction_nearest_visible(state)
+    return _direction_from_mouse(state)
+
+
 def _weapon_feedback(state: GameState) -> None:
     p = state.player
     p.weapon_visual_kick = min(1.0, p.weapon_visual_kick + 0.45)
 
 
-def _base_dmg(state: GameState) -> float:
-    w = get_weapon(state.active_weapon_id)
+def _base_dmg_for_weapon(state: GameState, wid: str) -> float:
+    w = get_weapon(wid)
     return (
         state.player.effective_damage
         * state.prophet_projectile_damage_mult()
@@ -65,11 +83,19 @@ def _base_dmg(state: GameState) -> float:
     )
 
 
-def fire_dark_bolt(state: GameState) -> None:
+def _set_weapon_cooldown(state: GameState, wid: str, factor: float = 1.0) -> None:
     p = state.player
-    ux, uy = _direction_from_mouse(state)
+    gw = get_weapon(wid)
+    dur = max(0.08, p.shoot_interval / max(0.25, gw.attack_speed_multiplier) * factor)
+    state.weapon_cooldowns[wid] = dur
+
+
+def fire_dark_bolt(state: GameState, firing_wid: str) -> None:
+    p = state.player
+    ux, uy = _aim_direction(state)
     visible = [e for e in state.enemies if _enemy_on_screen(state, e)]
     if not visible:
+        state.weapon_cooldowns[firing_wid] = 0.12
         return
     spd = p.projectile_speed * state.prophet_projectile_speed_mult()
     sx = p.x + ux * (p.radius + 4)
@@ -77,14 +103,15 @@ def fire_dark_bolt(state: GameState) -> None:
     bounces = state.upgrade_counts.get("chain_lightning", 0) + (
         state.chain_bonus_jumps if state.synergy_chain_echo else 0
     )
-    w = get_weapon(W_DARK_BOLT)
+    w = get_weapon(firing_wid)
+    bd = _base_dmg_for_weapon(state, firing_wid)
     proj = Projectile(
         sx,
         sy,
         ux,
         uy,
         spd,
-        _base_dmg(state),
+        bd,
         radius=6.0,
         max_range=min(420.0, w.range_units),
         kind="bolt",
@@ -92,11 +119,11 @@ def fire_dark_bolt(state: GameState) -> None:
         pierce_remaining=0,
     )
     state.projectiles.append(proj)
-    p.shoot_cooldown = p.shoot_interval
+    _set_weapon_cooldown(state, firing_wid)
     _weapon_feedback(state)
     sfx.play_shoot()
     particle_fx.spawn_muzzle(state, sx, sy, ux, uy)
-    if state.upgrade_counts.get("echo_shot", 0) > 0:
+    if firing_wid == W_DARK_BOLT and state.upgrade_counts.get("echo_shot", 0) > 0:
         ang = 0.28
         ca, sa = math.cos(ang), math.sin(ang)
         rdx = ux * ca - uy * sa
@@ -108,7 +135,7 @@ def fire_dark_bolt(state: GameState) -> None:
                 rdx,
                 rdy,
                 spd * 0.92,
-                _base_dmg(state) * 0.72,
+                bd * 0.72,
                 radius=5.0,
                 max_range=min(380.0, w.range_units * 0.9),
                 kind="bolt",
@@ -118,16 +145,17 @@ def fire_dark_bolt(state: GameState) -> None:
         )
 
 
-def fire_ritual_sword(state: GameState) -> None:
+def fire_ritual_sword(state: GameState, firing_wid: str) -> None:
     p = state.player
     visible = [e for e in state.enemies if _enemy_on_screen(state, e)]
     if not visible:
+        state.weapon_cooldowns[firing_wid] = 0.12
         return
-    ux, uy = _direction_from_mouse(state)
+    ux, uy = _aim_direction(state)
     ang = math.atan2(uy, ux)
-    arc = 1.35 + 0.08 * weapon_tier(state, W_RITUAL_SWORD)
-    w = get_weapon(W_RITUAL_SWORD)
-    rng = min(w.range_units, 58 + weapon_tier(state, W_RITUAL_SWORD) * 5)
+    arc = 1.35 + 0.08 * weapon_tier(state, firing_wid)
+    w = get_weapon(firing_wid)
+    rng = min(w.range_units, 58 + weapon_tier(state, firing_wid) * 5)
     state.melee_swings.append(
         {
             "t": 0.0,
@@ -135,25 +163,25 @@ def fire_ritual_sword(state: GameState) -> None:
             "angle": ang,
             "half_arc": arc / 2,
             "range": rng,
-            "dmg": _base_dmg(state) * 1.35,
+            "dmg": _base_dmg_for_weapon(state, firing_wid) * 1.35,
             "hit": set(),
         }
     )
-    p.shoot_cooldown = p.shoot_interval
+    _set_weapon_cooldown(state, firing_wid)
     _weapon_feedback(state)
     sfx.play_shoot()
     particle_fx.spawn_arc_slash(state, p.x, p.y, ang, rng)
 
 
-def fire_serpent_whip(state: GameState) -> None:
+def fire_serpent_whip(state: GameState, firing_wid: str) -> None:
     p = state.player
     visible = [e for e in state.enemies if _enemy_on_screen(state, e)]
     if not visible:
+        state.weapon_cooldowns[firing_wid] = 0.12
         return
-    ux, uy = _direction_from_mouse(state)
-    w = get_weapon(W_SERPENT_WHIP)
-    length = min(w.range_units, 150 + weapon_tier(state, W_SERPENT_WHIP) * 12)
-    width = 36.0
+    ux, uy = _aim_direction(state)
+    w = get_weapon(firing_wid)
+    length = min(w.range_units, 150 + weapon_tier(state, firing_wid) * 12)
     state.whip_strikes.append(
         {
             "t": 0.0,
@@ -161,27 +189,28 @@ def fire_serpent_whip(state: GameState) -> None:
             "ux": ux,
             "uy": uy,
             "length": length,
-            "width": width,
-            "dmg": _base_dmg(state) * 1.15,
+            "width": 36.0,
+            "dmg": _base_dmg_for_weapon(state, firing_wid) * 1.15,
             "hit": set(),
         }
     )
-    p.shoot_cooldown = p.shoot_interval
+    _set_weapon_cooldown(state, firing_wid)
     _weapon_feedback(state)
     sfx.play_shoot()
     particle_fx.spawn_whip_line(state, p.x, p.y, ux, uy, length)
 
 
-def fire_holy_water(state: GameState) -> None:
+def fire_holy_water(state: GameState, firing_wid: str) -> None:
     p = state.player
     visible = [e for e in state.enemies if _enemy_on_screen(state, e)]
     if not visible:
+        state.weapon_cooldowns[firing_wid] = 0.12
         return
-    ux, uy = _direction_from_mouse(state)
+    ux, uy = _aim_direction(state)
     spd = 280 * p.projectile_speed_mult
     sx = p.x + ux * (p.radius + 6)
     sy = p.y + uy * (p.radius + 6)
-    w = get_weapon(W_HOLY_WATER)
+    w = get_weapon(firing_wid)
     state.projectiles.append(
         Projectile(
             sx,
@@ -189,26 +218,28 @@ def fire_holy_water(state: GameState) -> None:
             ux,
             uy,
             spd,
-            _base_dmg(state) * 0.55,
+            _base_dmg_for_weapon(state, firing_wid) * 0.55,
             radius=8.0,
             max_range=min(300.0, w.range_units),
             kind="holy_flask",
             spawns_pool=True,
         )
     )
-    p.shoot_cooldown = p.shoot_interval * 1.15
+    _set_weapon_cooldown(state, firing_wid, 1.15)
     _weapon_feedback(state)
     sfx.play_shoot()
 
 
-def fire_inferno_pulse(state: GameState) -> None:
+def fire_inferno_pulse(state: GameState, firing_wid: str) -> None:
     p = state.player
-    w = get_weapon(W_INFERNO_PULSE)
-    rad = (95 + weapon_tier(state, W_INFERNO_PULSE) * 8) * state.synergy_explosion_radius_mult
+    w = get_weapon(firing_wid)
+    rad = (95 + weapon_tier(state, firing_wid) * 8) * state.synergy_explosion_radius_mult
     rad = min(rad, w.range_units * 1.2)
-    dmg = _base_dmg(state) * 0.95
+    dmg = _base_dmg_for_weapon(state, firing_wid) * 0.95
     state.pending_radial_pulses.append({"t": 0.0, "radius": rad, "dmg": dmg, "max_t": 0.14})
-    p.shoot_cooldown = max(0.55, p.shoot_interval * 1.6)
+    asp = max(0.25, w.attack_speed_multiplier)
+    dur = max(0.55, p.shoot_interval * 1.6 / asp)
+    state.weapon_cooldowns[firing_wid] = dur
     _weapon_feedback(state)
     particle_fx.spawn_fire_ring(state, p.x, p.y, rad)
     sfx.play_shoot()
@@ -217,30 +248,42 @@ def fire_inferno_pulse(state: GameState) -> None:
 
 def dispatch_weapon_attack(wid: str, state: GameState) -> None:
     if wid == W_RITUAL_SWORD:
-        fire_ritual_sword(state)
+        fire_ritual_sword(state, wid)
     elif wid == W_SERPENT_WHIP:
-        fire_serpent_whip(state)
+        fire_serpent_whip(state, wid)
     elif wid == W_HOLY_WATER:
-        fire_holy_water(state)
+        fire_holy_water(state, wid)
     elif wid == W_INFERNO_PULSE:
-        fire_inferno_pulse(state)
+        fire_inferno_pulse(state, wid)
     elif wid == W_CELESTIAL_ORBS:
         p = state.player
-        p.shoot_cooldown = p.shoot_interval * 1.35
+        _set_weapon_cooldown(state, wid, 1.35)
         _weapon_feedback(state)
         sfx.play_shoot()
         particle_fx.spawn_fire_ring(
             state, p.x, p.y, 48 + weapon_tier(state, W_CELESTIAL_ORBS) * 4
         )
     else:
-        fire_dark_bolt(state)
+        fire_dark_bolt(state, wid)
 
 
-def try_primary_weapon(state: GameState) -> None:
+def tick_weapon_cooldowns(state: GameState, dt: float) -> None:
+    for wid in state.weapon_loadout:
+        cur = state.weapon_cooldowns.get(wid, 0.0)
+        if cur > 0:
+            state.weapon_cooldowns[wid] = max(0.0, cur - dt)
+
+
+def try_fire_all_weapons(state: GameState) -> None:
     p = state.player
-    if p.shoot_cooldown > 0 or p.hp <= 0:
+    if p.hp <= 0:
         return
-    get_weapon(state.active_weapon_id).attack(state)
+    for wid in state.weapon_loadout:
+        if state.weapon_cooldowns.get(wid, 0.0) > 0:
+            continue
+        if weapon_tier(state, wid) <= 0 and wid != W_DARK_BOLT:
+            continue
+        get_weapon(wid).attack(state)
 
 
 def update_celestial_orbs(state: GameState, dt: float) -> None:
@@ -259,7 +302,7 @@ def update_celestial_orbs(state: GameState, dt: float) -> None:
         oy = p.y + math.sin(ang) * base_r
         orbs.append((ox, oy))
     state.orbital_debug = orbs
-    odmg = _base_dmg(state) * 0.22 * (1 + 0.06 * tier)
+    odmg = _base_dmg_for_weapon(state, W_CELESTIAL_ORBS) * 0.22 * (1 + 0.06 * tier)
     hit_r = 16.0
     from systems import combat_system
 
