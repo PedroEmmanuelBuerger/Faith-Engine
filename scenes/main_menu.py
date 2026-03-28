@@ -18,7 +18,6 @@ class MainMenuScene:
     def __init__(self, vw: int, vh: int, fonts: GameFonts) -> None:
         self.vw = vw
         self.vh = vh
-        self._fonts = fonts
         self.title_font = fonts.title_large
         self.menu_font = fonts.body
         self.sub_font = fonts.small

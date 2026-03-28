@@ -1,6 +1,7 @@
 """
 Sprites do jogador: parado (frente) e 2 frames de caminhada (perfil).
-Ficheiros: player_idle.png, player_walk.png, player_walk_2.png (opcional — duplica frame 1 se faltar).
+Prioridade: assets/sprites/player/ (idle.png ou sprite.png, walk.png, walk_2.png);
+fallback: PNGs legacy na raiz de assets/sprites/.
 """
 
 from __future__ import annotations
