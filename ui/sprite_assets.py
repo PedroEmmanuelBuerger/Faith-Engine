@@ -27,6 +27,8 @@ ENEMY_KIND_TO_FOLDER: Dict[str, str] = {
     "bulwark": "living_statue",
     "heretic": "corrupted_priest",
     "carrion_bomb": "corrupted_priest",
+    "charger": "skitter",
+    "splitter": "shadow_creature",
 }
 
 PLAYER_DIR = "player"

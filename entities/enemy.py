@@ -21,6 +21,8 @@ class EnemyKind:
     BULWARK = "bulwark"
     HERETIC = "heretic"
     CARRION_BOMB = "carrion_bomb"
+    PENITENT_CHARGER = "charger"
+    SCHISM_SPLITTER = "splitter"
 
 
 class Enemy:
@@ -38,6 +40,8 @@ class Enemy:
         *,
         explodes: bool = False,
         is_ranged: bool = False,
+        is_miniboss: bool = False,
+        split_depth: int = 0,
     ) -> None:
         self.x = float(x)
         self.y = float(y)
@@ -52,15 +56,27 @@ class Enemy:
 
         self.explodes = explodes
         self.is_ranged = is_ranged
+        self.is_miniboss = is_miniboss
+        self.split_depth = split_depth
         self.shoot_cd = 0.0
         self.charmed_until = 0.0
 
         self.hit_flash = 0.0
+        self.kb_vx = 0.0
+        self.kb_vy = 0.0
+        self._charger_cd = 0.8
+        self._dash_t = 0.0
 
     def update(self, dt: float, state: GameState) -> None:
-        self.hit_flash = max(0.0, self.hit_flash - dt * 5.0)
+        self.hit_flash = max(0.0, self.hit_flash - dt * 6.5)
         if self.hp <= 0:
             return
+
+        k_decay = math.exp(-11.0 * dt)
+        self.kb_vx *= k_decay
+        self.kb_vy *= k_decay
+        self.x += self.kb_vx * dt
+        self.y += self.kb_vy * dt
 
         tx, ty = state.player.x, state.player.y
         dx, dy = tx - self.x, ty - self.y
@@ -83,6 +99,21 @@ class Enemy:
                 od = math.hypot(odx, ody) or 1.0
                 self.x += (odx / od) * self.speed * dt
                 self.y += (ody / od) * self.speed * dt
+            return
+
+        if self.kind == EnemyKind.PENITENT_CHARGER:
+            spd = self.speed * (2.35 if self._dash_t > 0 else 1.0)
+            self._charger_cd -= dt
+            if self._dash_t > 0:
+                self._dash_t -= dt
+                self.x += ux * spd * dt
+                self.y += uy * spd * dt
+            else:
+                self.x += ux * self.speed * dt
+                self.y += uy * self.speed * dt
+                if self._charger_cd <= 0.0 and dist > 55:
+                    self._dash_t = 0.38
+                    self._charger_cd = 2.1 + random.uniform(0, 1.4)
             return
 
         if self.is_ranged:
@@ -135,4 +166,8 @@ def stats_for_kind(
         return base_hp * 0.82, base_spd * 0.88, base_dmg * 0.95, base_xp * 1.05, 13.0
     if kind == EnemyKind.CARRION_BOMB:
         return base_hp * 0.68, base_spd * 1.05, base_dmg * 0.85, base_xp * 0.9, 15.0
+    if kind == EnemyKind.PENITENT_CHARGER:
+        return base_hp * 0.62, base_spd * 1.42, base_dmg * 0.82, base_xp * 1.05, 12.0
+    if kind == EnemyKind.SCHISM_SPLITTER:
+        return base_hp * 1.05, base_spd * 0.82, base_dmg * 0.95, base_xp * 1.15, 17.0
     return base_hp, base_spd, base_dmg, base_xp, 14.0

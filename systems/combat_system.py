@@ -9,7 +9,7 @@ import random
 from typing import TYPE_CHECKING, List
 
 from core import config
-from entities.enemy import Enemy
+from entities.enemy import Enemy, EnemyKind, stats_for_kind
 from entities.projectile import Projectile
 from core import sfx
 from effects import particles as particle_fx
@@ -24,33 +24,131 @@ def _projectile_hits_enemy(px: float, py: float, pr: float, e: Enemy) -> bool:
     return math.hypot(px - e.x, py - e.y) <= pr + e.radius
 
 
+def _apply_knockback_from_player(state: GameState, enemy: Enemy, damage: float) -> None:
+    p = state.player
+    dx, dy = enemy.x - p.x, enemy.y - p.y
+    el = math.hypot(dx, dy) or 1.0
+    imp = min(240.0, 36.0 + min(damage, 130.0) * 0.52)
+    if getattr(enemy, "is_miniboss", False):
+        imp *= 0.48
+    nx, ny = dx / el, dy / el
+    enemy.kb_vx += nx * imp
+    enemy.kb_vy += ny * imp
+
+
+def _spawn_damage_number(state: GameState, x: float, y: float, amount: float) -> None:
+    if not getattr(state, "show_damage_numbers", True) or amount < 0.5:
+        return
+    if len(state.damage_numbers) >= config.MAX_DAMAGE_NUMBERS:
+        return
+    state.damage_numbers.append(
+        {
+            "x": x + random.uniform(-6, 6),
+            "y": y - 8,
+            "t": 0.62,
+            "txt": str(max(1, int(round(amount)))),
+            "vy": -52.0,
+        }
+    )
+
+
+def update_damage_numbers(state: GameState, dt: float) -> None:
+    alive: List[dict] = []
+    for d in state.damage_numbers:
+        d["t"] -= dt
+        d["y"] += d["vy"] * dt
+        d["vy"] *= 0.94
+        if d["t"] > 0:
+            alive.append(d)
+    state.damage_numbers = alive
+
+
 def apply_weapon_hit(
     state: GameState, enemy: Enemy, damage: float, source: str
 ) -> None:
     """Ponto único de dano de armas — dispara possessão, morte e efeitos."""
     if enemy.hp <= 0:
         return
+    prev_hp = enemy.hp
+    _apply_knockback_from_player(state, enemy, damage)
     dead = enemy.take_damage(damage)
+    dealt = max(0.0, prev_hp - enemy.hp)
     sfx.play_hit()
     particle_fx.spawn_hit_sparks(state, enemy.x, enemy.y)
+    _spawn_damage_number(state, enemy.x, enemy.y, dealt)
+    if damage >= 22.0:
+        state.screen_shake = max(state.screen_shake, 2.8 + min(4.0, damage * 0.018))
     if dead:
         on_enemy_defeated(state, enemy, source)
     else:
         try_possession_on_hit(state, enemy)
 
 
+def _spawn_split_children(state: GameState, parent: Enemy) -> None:
+    if parent.split_depth >= 1:
+        return
+    base_hp, base_spd, base_dmg, base_xp = 24.0, 68.0, 7.0, 7.0
+    for sign in (-1, 1):
+        if len(state.enemies) >= config.MAX_ENEMIES_ALIVE - 1:
+            break
+        a = sign * 0.72
+        ox = math.cos(a) * 30
+        oy = math.sin(a) * 30
+        kind = EnemyKind.SHADOW_CREATURE
+        hp, spd, dmg, xp, rad = stats_for_kind(kind, base_hp * 0.52, base_spd * 1.12, base_dmg * 0.88, base_xp * 0.5)
+        state.enemies.append(
+            Enemy(
+                parent.x + ox,
+                parent.y + oy,
+                max_hp=hp * 0.7,
+                speed=spd,
+                damage=dmg,
+                radius=max(9.0, rad * 0.8),
+                xp_value=xp,
+                kind=kind,
+                split_depth=parent.split_depth + 1,
+            )
+        )
+
+
+def _drop_miniboss_bible(state: GameState, x: float, y: float) -> None:
+    from entities.pickup import PICKUP_BIBLE
+
+    if len(state.pickups) >= config.MAX_PICKUPS_WORLD:
+        return
+    state.pickups.append(
+        {
+            "kind": PICKUP_BIBLE,
+            "x": x,
+            "y": y,
+            "r": 18.0,
+            "pulse": 0.0,
+            "miniboss": True,
+        }
+    )
+
+
 def on_enemy_defeated(state: GameState, enemy: Enemy, source: str) -> None:
     if getattr(enemy, "explodes", False):
         _exploding_enemy_death(state, enemy)
 
+    if enemy.kind == EnemyKind.SCHISM_SPLITTER and getattr(enemy, "split_depth", 0) < 1:
+        _spawn_split_children(state, enemy)
+
     from systems import progression_system
 
-    progression_system.grant_xp(state, enemy.xp_value)
+    xp_gain = enemy.xp_value * (1.9 if getattr(enemy, "is_miniboss", False) else 1.0)
+    progression_system.grant_xp(state, xp_gain)
     state.total_kills += 1
     if state.total_kills % 18 == 0:
         state.wave = min(99, state.wave + 1)
 
     particle_fx.spawn_death_burst(state, enemy.x, enemy.y, enemy.kind)
+    sfx.play_enemy_death()
+    if getattr(enemy, "is_miniboss", False):
+        particle_fx.spawn_fire_burst(state, enemy.x, enemy.y, 88)
+        state.screen_shake = max(state.screen_shake, 8.0)
+        _drop_miniboss_bible(state, enemy.x, enemy.y)
 
     stacks = state.upgrade_counts.get("flame_ritual", 0)
     if stacks > 0:
@@ -132,7 +230,7 @@ def update_contact_damage(state: GameState, dt: float) -> None:
             if eid not in state._enemy_hit_timer or state._enemy_hit_timer[eid] <= 0:
                 p.take_damage(e.damage)
                 state._enemy_hit_timer[eid] = state.contact_cooldown
-                state.screen_shake = max(state.screen_shake, 10.0)
+                state.screen_shake = max(state.screen_shake, 11.5)
                 state.damage_flash = min(0.9, state.damage_flash + 0.4)
 
 
@@ -220,6 +318,8 @@ def _blood_pact_tick(state: GameState, dt: float) -> None:
 
 def _update_enemy_bullets(state: GameState, dt: float) -> None:
     p = state.player
+    if len(state.enemy_bullets) > 120:
+        state.enemy_bullets = state.enemy_bullets[-120:]
     alive = []
     for b in state.enemy_bullets:
         b["x"] += b["vx"] * dt
@@ -229,6 +329,7 @@ def _update_enemy_bullets(state: GameState, dt: float) -> None:
             continue
         if math.hypot(b["x"] - p.x, b["y"] - p.y) <= p.radius + 6:
             p.take_damage(b["dmg"])
+            state.screen_shake = max(state.screen_shake, 5.5)
             state.damage_flash = min(0.85, state.damage_flash + 0.25)
             continue
         alive.append(b)
