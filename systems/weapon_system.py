@@ -7,7 +7,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, List, Tuple
 
-from core import config
+from core import config, sfx
 from entities.enemy import Enemy
 from entities.projectile import Projectile
 from effects import particles as particle_fx
@@ -82,6 +82,7 @@ def fire_dark_bolt(state: GameState) -> None:
     )
     state.projectiles.append(proj)
     p.shoot_cooldown = p.shoot_interval
+    sfx.play_shoot()
     particle_fx.spawn_muzzle(state, sx, sy, ux, uy)
     if state.upgrade_counts.get("echo_shot", 0) > 0:
         ang = 0.28
@@ -123,6 +124,7 @@ def fire_ritual_sword(state: GameState) -> None:
         }
     )
     p.shoot_cooldown = p.shoot_interval
+    sfx.play_shoot()
     particle_fx.spawn_arc_slash(state, p.x, p.y, ang, rng)
 
 
@@ -148,6 +150,7 @@ def fire_serpent_whip(state: GameState) -> None:
         }
     )
     p.shoot_cooldown = p.shoot_interval
+    sfx.play_shoot()
     particle_fx.spawn_whip_line(state, p.x, p.y, ux, uy, length)
 
 
@@ -175,6 +178,7 @@ def fire_holy_water(state: GameState) -> None:
         )
     )
     p.shoot_cooldown = p.shoot_interval * 1.15
+    sfx.play_shoot()
 
 
 def fire_inferno_pulse(state: GameState) -> None:
@@ -184,6 +188,7 @@ def fire_inferno_pulse(state: GameState) -> None:
     state.pending_radial_pulses.append({"t": 0.0, "radius": rad, "dmg": dmg, "max_t": 0.14})
     p.shoot_cooldown = max(0.55, p.shoot_interval * 1.6)
     particle_fx.spawn_fire_ring(state, p.x, p.y, rad)
+    sfx.play_shoot()
     _damage_in_radius(state, p.x, p.y, rad, dmg, "inferno")
 
 
@@ -231,6 +236,7 @@ def try_primary_weapon(state: GameState) -> None:
     elif wid == W_CELESTIAL_ORBS:
         # Orbes são dano contínuo; o “tiro” só regula cadência visual
         p.shoot_cooldown = p.shoot_interval * 1.35
+        sfx.play_shoot()
         particle_fx.spawn_fire_ring(state, p.x, p.y, 48 + weapon_tier(state, W_CELESTIAL_ORBS) * 4)
     else:
         fire_dark_bolt(state)
