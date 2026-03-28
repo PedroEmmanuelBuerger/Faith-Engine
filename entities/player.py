@@ -1,7 +1,8 @@
 """
-Jogador: cultista (desenho procedural — trocável por sprite depois).
-Movimento no mundo; projéteis em vez de aura.
+Jogador: sprite (parado / caminhada com 2 frames de perfil).
 """
+
+from core import config
 
 
 class Player:
@@ -15,6 +16,8 @@ class Player:
         # Visual: perfil olha para a direita por defeito; espelhar ao andar para a esquerda
         self.facing_right: bool = True
         self.is_walking: bool = False  # atualizado em move() a cada frame
+        self.walk_frame: int = 0  # 0 ou 1 — alterna ao andar
+        self._walk_anim_t: float = 0.0
 
         self.max_hp = 100.0
         self.hp = self.max_hp
@@ -53,6 +56,16 @@ class Player:
         self.y += dy * self.move_speed * dt
         self.x = max(self.radius, min(world_w - self.radius, self.x))
         self.y = max(self.radius, min(world_h - self.radius, self.y))
+
+        if self.is_walking:
+            self._walk_anim_t += dt
+            dur = config.PLAYER_WALK_FRAME_SEC
+            while self._walk_anim_t >= dur:
+                self._walk_anim_t -= dur
+                self.walk_frame ^= 1
+        else:
+            self._walk_anim_t = 0.0
+            self.walk_frame = 0
 
     def take_damage(self, amount: float) -> None:
         self.hp = max(0.0, self.hp - amount)

@@ -35,20 +35,20 @@ def _draw_player_sprite(
     sy: int,
     player,
     idle_surf: pygame.Surface | None,
-    walk_surf: pygame.Surface | None,
+    walk_frames: list[pygame.Surface] | None,
 ) -> None:
     """
-    Parado: sprite de frente. Andando: sprite de perfil (espelhado se for para a esquerda).
-    Ancoragem: pés na base do círculo de colisão.
+    Parado: frente. Andando: alterna 2 frames de perfil; espelha ao ir para a esquerda.
     """
-    if idle_surf is None or walk_surf is None:
+    if idle_surf is None or not walk_frames:
         _draw_cultist_fallback(surface, sx, sy, player)
         return
 
     if player.is_walking:
-        img = walk_surf
+        idx = player.walk_frame % len(walk_frames)
+        img = walk_frames[idx]
         if not player.facing_right:
-            img = pygame.transform.flip(walk_surf, True, False)
+            img = pygame.transform.flip(img, True, False)
     else:
         img = idle_surf
 
@@ -89,7 +89,7 @@ class UIManager:
         self.big_death_font = pygame.font.SysFont("segoeui", 52, bold=True)
         self.hud_font = pygame.font.SysFont("segoeui", 18)
         self.small_font = pygame.font.SysFont("segoeui", 15)
-        self._player_idle, self._player_walk = load_player_sprites()
+        self._player_idle, self._player_walk_frames = load_player_sprites()
 
     def draw_world_layer(self, surface: pygame.Surface, state: GameState) -> None:
         cx, cy = state.camera_x, state.camera_y
@@ -108,7 +108,7 @@ class UIManager:
         p = state.player
         sx, sy = utils.world_to_screen(p.x, p.y, cx, cy)
         _draw_player_sprite(
-            surface, int(sx), int(sy), p, self._player_idle, self._player_walk
+            surface, int(sx), int(sy), p, self._player_idle, self._player_walk_frames
         )
 
         for pt in state.particles:
