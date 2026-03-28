@@ -28,6 +28,9 @@ def main() -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if not state.level_up_paused and state.player.hp > 0:
+                    state.add_click_faith()
             if event.type == pygame.KEYDOWN and state.level_up_paused:
                 if event.key == pygame.K_1:
                     state.select_upgrade(0)
@@ -59,11 +62,13 @@ def main() -> None:
         pygame.draw.rect(screen, (120, 200, 140), (12, 36, int(bar_w * xp_frac), 10))
 
         hud = font.render(
-            f"HP {int(p.hp)}/{int(p.max_hp)}  |  Nv {state.level}  |  XP {int(state.xp)}/{int(state.xp_to_next)}  |  Inimigos: {len(state.enemies)}  |  Onda {state.wave}",
+            f"HP {int(p.hp)}/{int(p.max_hp)}  |  Fé {int(state.faith)}  |  Nv {state.level}  |  XP {int(state.xp)}/{int(state.xp_to_next)}  |  Inimigos: {len(state.enemies)}  |  Onda {state.wave}",
             True,
             (230, 220, 255),
         )
         screen.blit(hud, (12, 10))
+        sub = small.render("Clique esquerdo: ganhar Fé", True, (180, 170, 210))
+        screen.blit(sub, (12, 52))
 
         if state.level_up_paused:
             ov = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)

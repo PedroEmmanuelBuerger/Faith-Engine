@@ -55,6 +55,15 @@ class GameState:
 
         upgrades.refresh_stats(self)
 
+    def passive_faith_per_second(self) -> float:
+        """Seguidores geram fé passiva; multiplicadores vêm das cartas e do prestige."""
+        base = 0.35 * self.followers
+        return base * self.faith_rate_multiplier
+
+    def add_click_faith(self) -> None:
+        """Clique: injeção manual de fé (loop viciante)."""
+        self.faith += 1.2 * self.faith_rate_multiplier
+
     def spawn_enemy(self) -> None:
         scale = 1.0 + (self.wave - 1) * 0.08
         x, y = random_edge_position(self.width, self.height)
@@ -123,6 +132,8 @@ class GameState:
     def update(self, dt: float) -> None:
         if self.player.hp <= 0 or self.level_up_paused:
             return
+
+        self.faith += self.passive_faith_per_second() * dt
 
         self._tick_mad_prophet(dt)
 
