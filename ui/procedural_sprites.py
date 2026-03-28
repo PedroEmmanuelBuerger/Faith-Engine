@@ -56,40 +56,6 @@ def build_player_walk_frame(lean: float) -> pygame.Surface:
     return s
 
 
-def build_player_attack_pose() -> pygame.Surface:
-    """Perfil: braço estendido (conjuração / relíquia), paleta padre moderno."""
-    s = _surface()
-    off = 2
-    pygame.draw.ellipse(s, (14, 12, 22), (8 + off, 26, 26, 36))
-    pygame.draw.ellipse(s, (245, 220, 140), (12 + off, 10, 22, 18))
-    pygame.draw.rect(s, (255, 255, 255), (16 + off, 22, 14, 4))
-    pygame.draw.rect(s, (8, 8, 12), (13 + off, 16, 20, 8))
-    pygame.draw.line(s, (28, 26, 38), (18 + off, 24), (22 + off, 24), 1)
-    pygame.draw.arc(s, (55, 50, 70), (10 + off, 8, 26, 22), 0.2, math.pi - 0.2, 2)
-    arm = [(40 + off, 30), (52 + off, 22), (54 + off, 26), (42 + off, 36)]
-    pygame.draw.polygon(s, (18, 16, 28), arm)
-    pygame.draw.polygon(s, (40, 38, 55), arm, 2)
-    pygame.draw.circle(s, (255, 250, 200), (54 + off, 24), 3)
-    _glow_circle(s, (54 + off, 24), 2, (255, 240, 160, 140))
-    pygame.draw.ellipse(s, (12, 10, 20), (22 + off, 44, 10, 8))
-    return s
-
-
-def build_player_back_view() -> pygame.Surface:
-    """Vista de costas: cabelo loiro, capa/pellegrina, hábito."""
-    s = _surface()
-    pygame.draw.ellipse(s, (14, 12, 22), (14, 30, 36, 32))
-    pygame.draw.ellipse(s, (38, 34, 58), (14, 30, 36, 32), 2)
-    pygame.draw.ellipse(s, (245, 215, 130), (18, 8, 28, 22))
-    pygame.draw.ellipse(s, (200, 170, 95), (18, 8, 28, 22), 1)
-    pygame.draw.arc(s, (20, 18, 32), (12, 4, 40, 28), math.pi * 0.25, math.pi * 0.75, 3)
-    pygame.draw.arc(s, (30, 28, 48), (10, 18, 44, 30), math.pi * 0.2, math.pi * 0.8, 2)
-    pygame.draw.rect(s, (255, 255, 255), (22, 26, 20, 3))
-    pygame.draw.ellipse(s, (10, 8, 18), (16, 22, 32, 14))
-    pygame.draw.ellipse(s, (255, 255, 245), (30, 38, 6, 5))
-    return s
-
-
 def _enemy_corrupt_priest() -> pygame.Surface:
     s = _surface()
     pygame.draw.ellipse(s, (95, 28, 42), (16, 30, 32, 30))
@@ -185,6 +151,11 @@ _ENEMY_BUILDERS = {
 }
 
 _CACHE: Dict[str, pygame.Surface] = {}
+
+
+def clear_runtime_enemy_cache() -> None:
+    """Após mudar display mode, libertar superfícies antigas (evita crash ao blitar)."""
+    _CACHE.clear()
 
 
 def build_enemy_surface(kind: str) -> pygame.Surface:

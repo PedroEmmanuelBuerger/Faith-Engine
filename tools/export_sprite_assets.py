@@ -17,8 +17,6 @@ import pygame  # noqa: E402
 
 from ui.procedural_sprites import (  # noqa: E402
     build_enemy_surface,
-    build_player_attack_pose,
-    build_player_back_view,
     build_player_idle,
     build_player_walk_frame,
 )
@@ -54,10 +52,6 @@ def main() -> None:
     _save(w1, pdir / "walk.png")
     _save(w2, pdir / "walk_2.png")
     _save(idle, pdir / "attack.png")
-
-    spr_root = _ROOT / "assets" / "sprites"
-    _save(build_player_attack_pose(), spr_root / "player_attack.png")
-    _save(build_player_back_view(), spr_root / "player_back.png")
 
     pygame.quit()
     print("Concluído.")

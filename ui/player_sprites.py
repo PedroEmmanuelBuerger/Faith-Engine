@@ -1,21 +1,17 @@
 """
-Sprites do jogador: idle, caminhada, ataque e vista de costas.
+Sprites do jogador: idle + 2 frames de caminhada.
 Prioridade: assets/sprites/player_idle.png, player_walk.png, player_walk_2.png;
-ataque/costas: player_attack.png, player_back.png (ou pasta player/).
+ou a mesma convenção dentro de assets/sprites/player/.
 """
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import pygame
 
 from core import config
-from ui.procedural_sprites import (
-    build_player_attack_pose,
-    build_player_back_view,
-    load_procedural_player_sprites,
-)
+from ui.procedural_sprites import load_procedural_player_sprites
 from ui.sprite_assets import load_player_sprites_dynamic
 
 
@@ -43,32 +39,12 @@ def _prepare_surface(surf: pygame.Surface) -> pygame.Surface:
         return pygame.transform.scale(surf, (nw, nh))
 
 
-def load_player_sprites() -> Tuple[
-    pygame.Surface,
-    List[pygame.Surface],
-    pygame.Surface,
-    pygame.Surface,
-]:
-    """
-    Sempre devolve quatro superfícies válidas (ficheiros ou procedural para lacunas).
-    """
-    raw_idle, raw_walks, raw_attack, raw_back = load_player_sprites_dynamic()
+def load_player_sprites() -> Tuple[pygame.Surface, List[pygame.Surface]]:
+    """Sempre devolve (idle, [walk_a, walk_b]) válidos."""
+    raw_idle, raw_walks = load_player_sprites_dynamic()
     if raw_idle is None or not raw_walks:
-        idle, walks = load_procedural_player_sprites()
-        att = _prepare_surface(build_player_attack_pose())
-        back = _prepare_surface(build_player_back_view())
-        return idle, walks, att, back
+        return load_procedural_player_sprites()
 
     idle = _prepare_surface(raw_idle)
     walks = [_prepare_surface(w) for w in raw_walks]
-    att = (
-        _prepare_surface(raw_attack)
-        if raw_attack is not None
-        else _prepare_surface(build_player_attack_pose())
-    )
-    back = (
-        _prepare_surface(raw_back)
-        if raw_back is not None
-        else _prepare_surface(build_player_back_view())
-    )
-    return idle, walks, att, back
+    return idle, walks

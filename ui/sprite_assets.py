@@ -91,24 +91,25 @@ def load_enemy_sprite(kind: str) -> pygame.Surface:
 
 def clear_enemy_sprite_cache() -> None:
     _ENEMY_CACHE.clear()
+    from ui import procedural_sprites
+
+    procedural_sprites.clear_runtime_enemy_cache()
 
 
 def load_player_sprites_dynamic() -> Tuple[
     Optional[pygame.Surface],
     Optional[List[pygame.Surface]],
-    Optional[pygame.Surface],
-    Optional[pygame.Surface],
 ]:
     """
-    Prioridade: PNG canónicos na raiz (player_idle.png, player_walk.png, …),
-    depois assets/sprites/player/.
-    Devolve (idle, [walk1, walk2], attack|None, back|None).
+    Prioridade: raiz assets/sprites/ → assets/sprites/player/
+    Nomes: player_idle.png, player_walk.png, player_walk_2.png (ou idle/walk na pasta player/).
     """
     pdir = _SPRITES / PLAYER_DIR
 
     idle = _first_existing(
         [
             _SPRITES / "player_idle.png",
+            pdir / "player_idle.png",
             pdir / "idle.png",
             pdir / "sprite.png",
         ]
@@ -117,6 +118,7 @@ def load_player_sprites_dynamic() -> Tuple[
     walk1 = _first_existing(
         [
             _SPRITES / "player_walk.png",
+            pdir / "player_walk.png",
             pdir / "walk.png",
             pdir / "walk_1.png",
         ]
@@ -129,11 +131,12 @@ def load_player_sprites_dynamic() -> Tuple[
             )
         else:
             _log.warning("Sprites do jogador incompletos (falta idle ou walk)")
-        return None, None, None, None
+        return None, None
 
     walk2 = _first_existing(
         [
             _SPRITES / "player_walk_2.png",
+            pdir / "player_walk_2.png",
             pdir / "walk_2.png",
             pdir / "walk_alt.png",
         ]
@@ -141,9 +144,4 @@ def load_player_sprites_dynamic() -> Tuple[
     w2 = walk2 if walk2 is not None else walk1
     walks: List[pygame.Surface] = [walk1, w2]
 
-    attack = _first_existing(
-        [_SPRITES / "player_attack.png", pdir / "attack.png"]
-    )
-    back = _first_existing([_SPRITES / "player_back.png", pdir / "back.png"])
-
-    return idle, walks, attack, back
+    return idle, walks
