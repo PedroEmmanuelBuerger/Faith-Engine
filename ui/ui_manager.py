@@ -58,6 +58,10 @@ def _draw_player_sprite(
 
 def _draw_enemy(surface: pygame.Surface, sx: int, sy: int, enemy) -> None:
     flash = min(1.0, enemy.hit_flash)
+    if getattr(enemy, "charmed_until", 0) > 0:
+        tint = pygame.Surface((40, 40), pygame.SRCALPHA)
+        tint.fill((180, 255, 220, 90))
+        surface.blit(tint, (sx - 20, sy - 20))
     if enemy.kind == EnemyKind.POSSESSED_STATUE:
         base = (100 + int(40 * flash), 95 + int(35 * flash), 115 + int(30 * flash))
         body = pygame.Rect(sx - 16, sy - 20, 32, 36)
@@ -69,6 +73,22 @@ def _draw_enemy(surface: pygame.Surface, sx: int, sy: int, enemy) -> None:
         pygame.draw.ellipse(surface, (80, 50, 120), (sx - 18, sy - 12, 36, 24), 2)
         pygame.draw.circle(surface, (200, 60, 80), (sx - 6, sy - 4), 2)
         pygame.draw.circle(surface, (200, 60, 80), (sx + 6, sy - 4), 2)
+    elif enemy.kind == EnemyKind.SKITTER:
+        pygame.draw.polygon(
+            surface,
+            (140 + int(30 * flash), 90, 160),
+            [(sx, sy - 14), (sx + 14, sy + 10), (sx - 14, sy + 10)],
+        )
+    elif enemy.kind == EnemyKind.BULWARK:
+        body = pygame.Rect(sx - 20, sy - 18, 40, 38)
+        pygame.draw.rect(surface, (55 + int(25 * flash), 52, 72), body, border_radius=6)
+        pygame.draw.rect(surface, (95, 90, 115), body, 3, border_radius=6)
+    elif enemy.kind == EnemyKind.HERETIC:
+        pygame.draw.rect(surface, (120 + int(30 * flash), 70, 65), (sx - 12, sy - 16, 24, 34), border_radius=4)
+        pygame.draw.line(surface, (200, 200, 255), (sx + 14, sy - 4), (sx + 22, sy - 8), 2)
+    elif enemy.kind == EnemyKind.CARRION_BOMB:
+        pygame.draw.circle(surface, (70 + int(40 * flash), 140, 60), (sx, sy), 16)
+        pygame.draw.circle(surface, (255, 200, 80), (sx, sy), 8)
     else:
         # Sacerdote corrupto — manto bordô
         pygame.draw.ellipse(surface, (90 + int(40 * flash), 35, 50), (sx - 14, sy - 14, 28, 30))
@@ -77,9 +97,13 @@ def _draw_enemy(surface: pygame.Surface, sx: int, sy: int, enemy) -> None:
         pygame.draw.circle(surface, (255, 80, 90), (sx - 2, sy - 8), 2)
 
 
-def _draw_projectile(surface: pygame.Surface, sx: int, sy: int) -> None:
-    pygame.draw.circle(surface, config.COLOR_PROJECTILE_GLOW, (sx, sy), 9)
-    pygame.draw.circle(surface, config.COLOR_PROJECTILE_CORE, (sx, sy), 5)
+def _draw_projectile(surface: pygame.Surface, sx: int, sy: int, kind: str) -> None:
+    if kind == "holy_flask":
+        pygame.draw.circle(surface, (140, 220, 255), (sx, sy), 10)
+        pygame.draw.circle(surface, (220, 255, 255), (sx, sy), 5)
+    else:
+        pygame.draw.circle(surface, config.COLOR_PROJECTILE_GLOW, (sx, sy), 9)
+        pygame.draw.circle(surface, config.COLOR_PROJECTILE_CORE, (sx, sy), 5)
 
 
 class UIManager:
@@ -95,6 +119,39 @@ class UIManager:
         cx, cy = state.camera_x, state.camera_y
         environment.draw_world_background(surface, cx, cy)
 
+        for pool in state.ground_pools:
+            psx, psy = utils.world_to_screen(pool["x"], pool["y"], cx, cy)
+            r = int(pool["radius"])
+            s = pygame.Surface((r * 2 + 4, r * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(s, (120, 200, 255, 55), (r + 2, r + 2), r)
+            pygame.draw.circle(s, (200, 255, 240, 110), (r + 2, r + 2), max(4, r // 4))
+            surface.blit(s, (int(psx - r - 2), int(psy - r - 2)))
+
+        for ox, oy in state.orbital_debug:
+            osx, osy = utils.world_to_screen(ox, oy, cx, cy)
+            pygame.draw.circle(surface, (255, 230, 160), (int(osx), int(osy)), 10)
+            pygame.draw.circle(surface, (255, 255, 220), (int(osx), int(osy)), 4)
+
+        p = state.player
+        for sw in state.melee_swings:
+            ang = sw["angle"]
+            ha = sw["half_arc"]
+            rng = int(sw["range"])
+            psx, psy = utils.world_to_screen(p.x, p.y, cx, cy)
+            rect = pygame.Rect(psx - rng - 4, psy - rng - 4, (rng + 4) * 2, (rng + 4) * 2)
+            surf = pygame.Surface(rect.size, pygame.SRCALPHA)
+            cx0, cy0 = rng + 4, rng + 4
+            a0 = ang - ha
+            a1 = ang + ha
+            pts = [(cx0, cy0)]
+            steps = 10
+            for i in range(steps + 1):
+                t = i / steps
+                a = a0 + (a1 - a0) * t
+                pts.append((cx0 + math.cos(a) * rng, cy0 + math.sin(a) * rng))
+            pygame.draw.polygon(surf, (255, 220, 180, 70), pts)
+            surface.blit(surf, rect.topleft)
+
         for e in state.enemies:
             sx, sy = utils.world_to_screen(e.x, e.y, cx, cy)
             if -50 < sx < config.VIEWPORT_W + 50 and -50 < sy < config.VIEWPORT_H + 50:
@@ -103,9 +160,12 @@ class UIManager:
         for proj in state.projectiles:
             sx, sy = utils.world_to_screen(proj.x, proj.y, cx, cy)
             if -20 < sx < config.VIEWPORT_W + 20:
-                _draw_projectile(surface, int(sx), int(sy))
+                _draw_projectile(surface, int(sx), int(sy), proj.kind)
 
-        p = state.player
+        for b in state.enemy_bullets:
+            bx, by = utils.world_to_screen(b["x"], b["y"], cx, cy)
+            pygame.draw.circle(surface, (255, 100, 90), (int(bx), int(by)), 5)
+
         sx, sy = utils.world_to_screen(p.x, p.y, cx, cy)
         _draw_player_sprite(
             surface, int(sx), int(sy), p, self._player_idle, self._player_walk_frames

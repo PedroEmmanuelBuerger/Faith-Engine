@@ -11,7 +11,7 @@ FPS = 60
 WORLD_W = 2800
 WORLD_H = 1800
 
-GAME_TITLE = "Faith-Engine"
+GAME_TITLE = "Culto do Infinito"
 
 TILE_SIZE = 48
 

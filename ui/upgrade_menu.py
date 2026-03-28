@@ -12,6 +12,21 @@ from core.game_state import GameState
 from systems import upgrade_system
 
 
+def _synergy_hint_lines(state: GameState) -> list[str]:
+    lines: list[str] = []
+    if state.synergy_inferno:
+        lines.append("Fogo + explosão: áreas de chama e pulso maiores")
+    if state.synergy_toxic_baptism:
+        lines.append("Água benta + veneno: poços mais fortes e longos")
+    if state.synergy_orb_velocity > 1.01 and state.upgrade_counts.get("w_celestial_orbs", 0) > 0:
+        lines.append("Orbes + Passo do Véu: rotação mais rápida")
+    if state.synergy_chain_echo:
+        lines.append("Corrente + Eco: mais ricochetes no raio")
+    if state.synergy_zeal_active:
+        lines.append("Pacto de sangue + raio empilhado: zelo sombrio ativo")
+    return lines
+
+
 class UpgradeMenu:
     def __init__(self) -> None:
         self.card_rects: List[pygame.Rect] = []
@@ -94,7 +109,11 @@ class UpgradeMenu:
 
             name, desc = upgrade_system.describe(uid)
             stacks = state.upgrade_counts.get(uid, 0)
-            surface.blit(body_font.render(name, True, (255, 255, 255)), (r.x + 14, r.y + 16))
+            ic = upgrade_system.icon_for(uid)
+            surface.blit(
+                body_font.render(f"{ic}  {name}", True, (255, 255, 255)),
+                (r.x + 14, r.y + 16),
+            )
             surface.blit(
                 body_font.render(f"Próxima pilha: ×{stacks + 1}", True, (200, 190, 230)),
                 (r.x + 14, r.y + 44),
@@ -114,10 +133,10 @@ class UpgradeMenu:
             if line:
                 surface.blit(body_font.render(line.strip(), True, (210, 200, 235)), (r.x + 14, y))
 
-        if state.synergy_zeal_active:
-            syn = body_font.render(
-                "Sinergia: Canto Obscuro + Ritual de Sangue",
-                True,
-                (255, 170, 190),
-            )
-            surface.blit(syn, syn.get_rect(center=(screen_w // 2, screen_h - 40)))
+        syn_lines = _synergy_hint_lines(state)
+        if syn_lines:
+            y_syn = screen_h - 28 - 20 * len(syn_lines)
+            for line in syn_lines:
+                syn = body_font.render(f"✦ {line}", True, (255, 190, 210))
+                surface.blit(syn, syn.get_rect(center=(screen_w // 2, y_syn)))
+                y_syn += 20

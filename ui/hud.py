@@ -23,6 +23,7 @@ def draw_hud(
     pygame.draw.rect(surface, (32, 26, 48), (12, 38, bar_w, 8))
     pygame.draw.rect(surface, (100, 180, 130), (12, 38, int(bar_w * xp_frac), 8))
 
+    wname, _ = upgrade_system.describe(state.active_weapon_id)
     line = (
         f"HP {int(p.hp)}/{int(p.max_hp)}  |  Fé {int(state.faith)}  |  "
         f"Nv {state.level}  |  XP {int(state.xp)}/{int(state.xp_to_next)}  |  "
@@ -31,7 +32,8 @@ def draw_hud(
     surface.blit(font.render(line, True, (230, 220, 255)), (12, 10))
     surface.blit(
         small.render(
-            "Tiro automático (mais próximo)  |  Dir: Fé  |  WASD: mover",
+            f"Arma: {upgrade_system.icon_for(state.active_weapon_id)} {wname}  |  "
+            "Clique dir.: Fé  |  WASD: mover",
             True,
             (170, 160, 200),
         ),
@@ -39,11 +41,11 @@ def draw_hud(
     )
     surface.blit(
         small.render(
-            f"Pressão: x{state.difficulty_mult:.2f}",
+            f"Pressão de spawn: ×{state.spawn_pressure:.2f}",
             True,
             (150, 140, 180),
         ),
-        (280, 52),
+        (280, 72),
     )
     trans = f"Transcendência {state.prestige_points} (+{int(state.prestige_faith_mult * 100 - 100)}% Fé)"
     surface.blit(small.render(trans, True, (210, 190, 150)), (480, 52))
