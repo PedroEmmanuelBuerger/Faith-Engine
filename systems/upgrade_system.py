@@ -7,16 +7,8 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple
 
+from entities.weapon import W_DARK_BOLT, WEAPON_ORDER, compute_active_weapon, get_weapon
 from systems import synergies
-from systems.weapon_system import (
-    W_CELESTIAL_ORBS,
-    W_DARK_BOLT,
-    W_HOLY_WATER,
-    W_INFERNO_PULSE,
-    W_RITUAL_SWORD,
-    W_SERPENT_WHIP,
-    WEAPON_ORDER,
-)
 
 if TYPE_CHECKING:
     from core.game_state import GameState
@@ -136,26 +128,13 @@ def random_choices(n: int = 3, exclude: Optional[List[str]] = None) -> List[str]
     return random.sample(pool, n)
 
 
-def compute_active_weapon(state: GameState) -> str:
-    """Arma com mais pilhas; empate: ordem em WEAPON_ORDER (último na lista perde desempate)."""
-    c = state.upgrade_counts
-    best = -1
-    wid = W_DARK_BOLT
-    for w in WEAPON_ORDER:
-        n = c.get(w, 0)
-        if n > best:
-            best = n
-            wid = w
-    if best <= 0:
-        return W_DARK_BOLT
-    return wid
-
-
 def refresh_stats(state: GameState) -> None:
     p = state.player
     c = state.upgrade_counts
 
     state.active_weapon_id = compute_active_weapon(state)
+    w = get_weapon(state.active_weapon_id)
+    state.player.equipped_weapon = w
 
     # Dano: pacto de sangue é o grosso; resto mínimo
     pact = c.get("blood_pact", 0)
@@ -166,7 +145,7 @@ def refresh_stats(state: GameState) -> None:
     p.move_speed = 240.0 + 8 * c.get("veil_step", 0)
 
     interval = max(0.1, 0.95 * (0.9 ** c.get("fervor", 0)))
-    p.shoot_interval = interval
+    p.shoot_interval = max(0.1, interval / max(0.25, w.attack_speed_multiplier))
 
     state.followers = 1.0 + c.get("cult_network", 0) * 0.7
     state.faith_rate_multiplier = (1.0 + 0.06 * c.get("cult_network", 0)) * state.prestige_faith_mult

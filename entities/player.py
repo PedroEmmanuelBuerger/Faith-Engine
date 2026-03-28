@@ -1,8 +1,24 @@
 """
-Jogador: movimento, stats e animação (sprites vêm da UI).
+Jogador: movimento, stats, facing (rato/movimento) e arma equipada.
 """
 
+from __future__ import annotations
+
+import math
+from enum import Enum, auto
+from typing import TYPE_CHECKING
+
 from core import config
+
+if TYPE_CHECKING:
+    from entities.weapon import Weapon
+
+
+class FaceDirection(Enum):
+    LEFT = auto()
+    RIGHT = auto()
+    UP = auto()
+    DOWN = auto()
 
 
 class Player:
@@ -12,11 +28,15 @@ class Player:
         self.radius = 16
 
         self.facing_right: bool = True
-        # Vista para sprites: lado, frente (sul) ou costas (norte) no movimento predominante
-        self.view_facing: str = "south"
+        self.facing_dir: FaceDirection = FaceDirection.DOWN
+        self.equipped_weapon: Weapon | None = None
+        self.weapon_visual_kick: float = 0.0
+
         self.is_walking: bool = False
         self.walk_frame: int = 0
         self._walk_anim_t: float = 0.0
+        self._last_input_dx: float = 0.0
+        self._last_input_dy: float = 0.0
 
         self.max_hp = 100.0
         self.hp = self.max_hp
@@ -38,6 +58,29 @@ class Player:
     def projectile_speed(self) -> float:
         return 420.0 * self.projectile_speed_mult
 
+    def update_facing_toward(self, aim_world_x: float, aim_world_y: float) -> None:
+        """Prioridade: vetor jogador → mira; senão último input de movimento."""
+        dx = aim_world_x - self.x
+        dy = aim_world_y - self.y
+        dist = math.hypot(dx, dy)
+        if dist > 14.0:
+            if abs(dx) >= abs(dy):
+                self.facing_dir = FaceDirection.RIGHT if dx > 0 else FaceDirection.LEFT
+                self.facing_right = dx > 0
+            else:
+                self.facing_dir = FaceDirection.DOWN if dy > 0 else FaceDirection.UP
+            return
+        lx, ly = self._last_input_dx, self._last_input_dy
+        if self.is_walking and (lx != 0 or ly != 0):
+            if abs(lx) >= abs(ly):
+                self.facing_dir = FaceDirection.RIGHT if lx > 0 else FaceDirection.LEFT
+                self.facing_right = lx > 0
+            else:
+                self.facing_dir = FaceDirection.DOWN if ly > 0 else FaceDirection.UP
+
+    def tick_weapon_kick(self, dt: float) -> None:
+        self.weapon_visual_kick = max(0.0, self.weapon_visual_kick - dt * 2.8)
+
     def move(
         self,
         dx: float,
@@ -46,17 +89,12 @@ class Player:
         world_w: float | None = None,
         world_h: float | None = None,
     ) -> None:
+        self._last_input_dx, self._last_input_dy = dx, dy
         self.is_walking = dx != 0 or dy != 0
         if dx > 0:
             self.facing_right = True
         elif dx < 0:
             self.facing_right = False
-
-        if self.is_walking:
-            if abs(dy) >= abs(dx) and dy != 0:
-                self.view_facing = "north" if dy < 0 else "south"
-            elif dx != 0:
-                self.view_facing = "side"
 
         if dx != 0 or dy != 0:
             length = (dx * dx + dy * dy) ** 0.5
