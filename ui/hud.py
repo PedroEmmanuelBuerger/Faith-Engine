@@ -58,6 +58,26 @@ def draw_hud(
     trans = f"Transcendência {state.prestige_points} (+{int(state.prestige_faith_mult * 100 - 100)}% Fé)"
     surface.blit(small.render(trans, True, (210, 190, 150)), (480, 52))
 
+    buff_parts: list[str] = []
+    uc = state.upgrade_counts
+    if uc.get("blood_pact", 0) > 0:
+        buff_parts.append(upgrade_system.icon_for("blood_pact"))
+    if uc.get("fervor", 0) > 0:
+        buff_parts.append(upgrade_system.icon_for("fervor"))
+    if uc.get("omen_sight", 0) > 0:
+        buff_parts.append(upgrade_system.icon_for("omen_sight"))
+    if uc.get("veil_step", 0) > 0:
+        buff_parts.append(upgrade_system.icon_for("veil_step"))
+    if uc.get("chain_lightning", 0) > 0:
+        buff_parts.append(upgrade_system.icon_for("chain_lightning"))
+    if buff_parts:
+        ap = float(getattr(state, "ascension_pick_bonus", 0.0))
+        bonus_txt = f"  |  Ascensão +{int(ap * 100)}% dano" if ap > 0.001 else ""
+        surface.blit(
+            small.render("Poder ativo: " + " ".join(buff_parts) + bonus_txt, True, (255, 210, 175)),
+            (12, config.VIEWPORT_H - 50),
+        )
+
     if state.can_prestige():
         surface.blit(
             small.render("[P] Transcender (≥400 Fé)", True, (240, 210, 130)),

@@ -256,6 +256,7 @@ class GameApp:
                 save_settings(self.settings)
                 self.settings_scene = None
                 self.scene = AppScene.MAIN_MENU
+                sfx.set_music_intensity(0.0)
                 game_logging.log_state("Cena: MAIN_MENU (definições)")
             return
 
@@ -277,6 +278,7 @@ class GameApp:
                 self.saved_prestige_points = self.play_state.prestige_points
                 self.play_state = None
                 self.scene = AppScene.MAIN_MENU
+                sfx.set_music_intensity(0.0)
                 game_logging.log_state("Cena: MAIN_MENU (game over)")
 
     def update(self, dt: float) -> None:

@@ -48,6 +48,13 @@ class GameState:
         self.synergy_zeal_active = False
 
         self.faith = 0.0
+        self.damage_numbers: List[Dict[str, Any]] = []
+        self.show_damage_numbers = True
+        self.ascension_pick_bonus = 0.0
+        self.upgrade_choice_rarities: List[str] = []
+        self.miniboss_timer = 88.0
+        self._relic_shards_banked = False
+
         self.followers = 1.0
         self.faith_rate_multiplier = 1.0
         self.prestige_faith_mult = 1.0
@@ -98,8 +105,12 @@ class GameState:
         self.death_fade = 0.0
         self.game_paused = False
 
+        from core import relic_store
+
+        relic_store.apply_starting_bonuses_to_player(self.player, self)
+
         upgrade_system.refresh_stats(self)
-        self._update_camera()
+        self._update_camera(0.0)
 
     def sync_aim_from_screen(self, mouse_x: int, mouse_y: int) -> None:
         self.aim_world_x, self.aim_world_y = utils.screen_to_world(
@@ -140,17 +151,26 @@ class GameState:
     def prophet_projectile_speed_mult(self) -> float:
         return 1.28 if self._prophet_spd_left > 0 else 1.0
 
-    def _update_camera(self) -> None:
+    def _update_camera(self, dt: float = 0.0) -> None:
         from core import config
 
         p = self.player
-        self.camera_x = p.x - config.VIEWPORT_W / 2
-        self.camera_y = p.y - config.VIEWPORT_H / 2
+        tw = config.VIEWPORT_W / 2
+        th = config.VIEWPORT_H / 2
+        tx = p.x - tw
+        ty = p.y - th
+        if dt <= 1e-8:
+            self.camera_x, self.camera_y = tx, ty
+            return
+        k = min(1.0, dt * 8.2)
+        self.camera_x += (tx - self.camera_x) * k
+        self.camera_y += (ty - self.camera_y) * k
 
     def update(self, dt: float) -> None:
         if self.game_paused:
             return
         self.difficulty_time += dt
+        sfx.set_music_intensity(min(1.0, self.difficulty_time / 260.0))
         particle_fx.update_particles(self, dt)
 
         if self.death_mode == "fading":
@@ -177,6 +197,11 @@ class GameState:
         self.faith += self.passive_faith_per_second() * dt
         progression_system.tick_mad_prophet(self, dt)
 
+        self.miniboss_timer -= dt
+        if self.miniboss_timer <= 0:
+            spawn_system.try_spawn_miniboss(self)
+            self.miniboss_timer = 78.0 + random.uniform(-10.0, 20.0)
+
         self.spawn_timer -= dt
         if self.spawn_timer <= 0:
             spawn_system.spawn_enemy(self)
@@ -190,11 +215,17 @@ class GameState:
 
         combat_system.update_contact_damage(self, dt)
         combat_system.update_projectiles(self, dt)
+        combat_system.update_damage_numbers(self, dt)
 
-        self._update_camera()
+        self._update_camera(dt)
         self.world.prune_caches(self.player.x, self.player.y)
 
         if self.player.hp <= 0 and self.death_mode == "alive":
+            if not self._relic_shards_banked:
+                from core import relic_store
+
+                relic_store.grant_shards_from_run(self)
+                self._relic_shards_banked = True
             self.death_mode = "fading"
             self.death_fade = 0.0
             self.screen_shake = max(self.screen_shake, 14.0)
@@ -212,7 +243,7 @@ class GameState:
 
         self.player.move(dx, dy, dt, None, None)
         world_collision.resolve_player_vs_solids(self.player, self.world)
-        self._update_camera()
+        self._update_camera(dt)
 
     def select_upgrade(self, index: int) -> None:
         progression_system.select_upgrade(self, index)
@@ -256,6 +287,11 @@ class GameState:
         self.death_fade = 0.0
         self.game_paused = False
         self.upgrade_counts = {}
+        self.ascension_pick_bonus = 0.0
+        self.upgrade_choice_rarities = []
+        self.damage_numbers.clear()
+        self.miniboss_timer = 88.0
+        self._relic_shards_banked = False
         self.weapon_loadout = ["w_dark_bolt"]
         self.weapon_cooldowns.clear()
         self._weapon_base_interval = 0.95
@@ -270,4 +306,4 @@ class GameState:
         else:
             self.prestige_faith_mult = 1.0 + 0.12 * self.prestige_points
         upgrade_system.refresh_stats(self)
-        self._update_camera()
+        self._update_camera(0.0)

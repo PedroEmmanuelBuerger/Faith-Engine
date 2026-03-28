@@ -127,9 +127,14 @@ def _draw_weapon_orbit(
     for i, wid in enumerate(load):
         w = get_weapon(wid)
         ang = state.weapon_orbit_phase + (math.tau / n) * i
-        ox = math.cos(ang) * _WEAPON_ORBIT_RADIUS
-        oy = math.sin(ang) * _WEAPON_ORBIT_RADIUS * 0.9
+        bob = math.sin(state.weapon_orbit_phase * 2.25 + i * 1.07) * 5.5
+        rad = _WEAPON_ORBIT_RADIUS + bob
+        ox = math.cos(ang) * rad
+        oy = math.sin(ang) * rad * 0.9
+        rot = int(math.sin(state.weapon_orbit_phase * 1.4 + i) * 6)
         img = weapon_assets.get_weapon_surface(w.sprite_key)
+        if rot != 0:
+            img = pygame.transform.rotate(img, rot)
         rect = img.get_rect(center=(int(sx + ox + kick * 0.08), int(body_cy + oy)))
         surface.blit(img, rect)
         if player.weapon_visual_kick > 0.06:
@@ -158,6 +163,12 @@ def _draw_enemy(surface: pygame.Surface, sx: int, sy: int, enemy) -> None:
     scaled = out
     rect = scaled.get_rect(midbottom=(int(sx), int(sy + enemy.radius)))
     surface.blit(scaled, rect)
+    if getattr(enemy, "is_miniboss", False):
+        aura = pygame.Surface((w + 28, h + 28), pygame.SRCALPHA)
+        pygame.draw.ellipse(
+            aura, (255, 200, 90, 95), aura.get_rect().inflate(-4, -4), width=5
+        )
+        surface.blit(aura, (rect.x - 14, rect.y - 14))
     if getattr(enemy, "charmed_until", 0) > 0:
         glow = pygame.Surface((w + 8, h + 8), pygame.SRCALPHA)
         pygame.draw.ellipse(glow, (120, 255, 200, 70), glow.get_rect())
@@ -265,6 +276,18 @@ class UIManager:
             px = pygame.Surface((8, 8), pygame.SRCALPHA)
             px.fill((*col, alpha))
             surface.blit(px, (int(psx - 4), int(psy - 4)))
+
+        if state.damage_numbers:
+            f = self.small_font
+            for d in state.damage_numbers:
+                psx, psy = utils.world_to_screen(d["x"], d["y"], cx, cy)
+                alpha = max(35, min(255, int(280 * d.get("t", 0.5))))
+                txt = f.render(d["txt"], True, (255, 225, 140))
+                o = f.render(d["txt"], True, (40, 20, 60))
+                surface.blit(o, (int(psx - txt.get_width() // 2 + 1), int(psy + 1)))
+                t2 = txt.copy()
+                t2.set_alpha(alpha)
+                surface.blit(t2, (int(psx - txt.get_width() // 2), int(psy)))
 
     def draw_damage_flash(
         self, surface: pygame.Surface, amount: float

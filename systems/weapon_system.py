@@ -169,7 +169,8 @@ def fire_ritual_sword(state: GameState, firing_wid: str) -> None:
     )
     _set_weapon_cooldown(state, firing_wid)
     _weapon_feedback(state)
-    sfx.play_shoot()
+    sfx.play_shoot_heavy()
+    state.screen_shake = max(state.screen_shake, 2.4)
     particle_fx.spawn_arc_slash(state, p.x, p.y, ang, rng)
 
 
@@ -196,7 +197,8 @@ def fire_serpent_whip(state: GameState, firing_wid: str) -> None:
     )
     _set_weapon_cooldown(state, firing_wid)
     _weapon_feedback(state)
-    sfx.play_shoot()
+    sfx.play_shoot_heavy()
+    state.screen_shake = max(state.screen_shake, 2.0)
     particle_fx.spawn_whip_line(state, p.x, p.y, ux, uy, length)
 
 
@@ -242,7 +244,8 @@ def fire_inferno_pulse(state: GameState, firing_wid: str) -> None:
     state.weapon_cooldowns[firing_wid] = dur
     _weapon_feedback(state)
     particle_fx.spawn_fire_ring(state, p.x, p.y, rad)
-    sfx.play_shoot()
+    sfx.play_shoot_heavy()
+    state.screen_shake = max(state.screen_shake, 5.2 + min(4.0, rad * 0.018))
     _damage_in_radius(state, p.x, p.y, rad, dmg, "inferno")
 
 
