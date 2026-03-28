@@ -12,6 +12,8 @@ class Player:
         self.radius = 16
 
         self.facing_right: bool = True
+        # Vista para sprites: lado, frente (sul) ou costas (norte) no movimento predominante
+        self.view_facing: str = "south"
         self.is_walking: bool = False
         self.walk_frame: int = 0
         self._walk_anim_t: float = 0.0
@@ -49,6 +51,12 @@ class Player:
             self.facing_right = True
         elif dx < 0:
             self.facing_right = False
+
+        if self.is_walking:
+            if abs(dy) >= abs(dx) and dy != 0:
+                self.view_facing = "north" if dy < 0 else "south"
+            elif dx != 0:
+                self.view_facing = "side"
 
         if dx != 0 or dy != 0:
             length = (dx * dx + dy * dy) ** 0.5

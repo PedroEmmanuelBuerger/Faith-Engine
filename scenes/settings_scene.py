@@ -19,13 +19,15 @@ class SettingsScene:
         settings: Settings,
         vw: int,
         vh: int,
-        on_apply: Callable[[], None],
+        on_apply_video: Callable[[], None],
+        on_apply_audio: Callable[[], None],
         fonts: GameFonts,
     ) -> None:
         self.settings = settings
         self.vw = vw
         self.vh = vh
-        self._on_apply = on_apply
+        self._on_apply_video = on_apply_video
+        self._on_apply_audio = on_apply_audio
         self.title_font = fonts.title_medium
         self.body_font = fonts.body
         self.small_font = fonts.small
@@ -39,6 +41,12 @@ class SettingsScene:
     def on_resize(self, vw: int, vh: int) -> None:
         self.vw = vw
         self.vh = vh
+        self._res_index = self._nearest_preset_index()
+
+    def set_fonts(self, fonts: GameFonts) -> None:
+        self.title_font = fonts.title_medium
+        self.body_font = fonts.body
+        self.small_font = fonts.small
 
     def _nearest_preset_index(self) -> int:
         w, h = self.settings.window_width, self.settings.window_height
@@ -64,7 +72,7 @@ class SettingsScene:
         w, h = RESOLUTION_PRESETS[self._res_index]
         self.settings.window_width = w
         self.settings.window_height = h
-        self._on_apply()
+        self._on_apply_video()
 
     def _set_volume_from_x(self, mx: int) -> None:
         if not self._slider_rect:
@@ -73,7 +81,7 @@ class SettingsScene:
             r = self._slider_rect
             t = (mx - r.x) / max(1, r.w)
             self.settings.master_volume = max(0.0, min(1.0, float(t)))
-            self._on_apply()
+            self._on_apply_audio()
         except (TypeError, ValueError, ArithmeticError):
             pass
 
@@ -126,7 +134,7 @@ class SettingsScene:
                 return None
             if self._btn_full.collidepoint(pos):
                 self.settings.fullscreen = not self.settings.fullscreen
-                self._on_apply()
+                self._on_apply_video()
                 return None
             if self._slider_rect.collidepoint(pos):
                 self._drag_vol = True

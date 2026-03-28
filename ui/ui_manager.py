@@ -15,7 +15,6 @@ from core.game_state import GameState
 from ui import environment, hud
 from ui.font_loader import GameFonts
 from ui.player_sprites import load_player_sprites
-from ui.procedural_sprites import load_procedural_player_sprites
 from ui.sprite_assets import load_enemy_sprite
 from ui.upgrade_menu import UpgradeMenu
 
@@ -31,6 +30,14 @@ def _draw_cultist_fallback(surface: pygame.Surface, sx: int, sy: int, player) ->
     pygame.draw.circle(surface, config.COLOR_EYE_GLOW, (sx + 5, sy - 10), 3)
 
 
+def _player_in_attack_pose(player) -> bool:
+    si = player.shoot_interval
+    if si <= 0.02:
+        return False
+    window = min(0.18, max(0.08, si * 0.22))
+    return player.shoot_cooldown > si - window
+
+
 def _draw_player_sprite(
     surface: pygame.Surface,
     sx: int,
@@ -38,21 +45,39 @@ def _draw_player_sprite(
     player,
     idle_surf: pygame.Surface | None,
     walk_frames: list[pygame.Surface] | None,
+    attack_surf: pygame.Surface | None,
+    back_surf: pygame.Surface | None,
 ) -> None:
     """
-    Parado: frente. Andando: alterna 2 frames de perfil; espelha ao ir para a esquerda.
+    Idle frontal, walk em perfil (espelho), norte = costas, sul = frente;
+    janela curta após disparo = sprite de ataque.
     """
     if idle_surf is None or not walk_frames:
         _draw_cultist_fallback(surface, sx, sy, player)
         return
 
-    if player.is_walking:
-        idx = player.walk_frame % len(walk_frames)
-        img = walk_frames[idx]
+    img: pygame.Surface
+    flip_h = False
+
+    if attack_surf is not None and _player_in_attack_pose(player):
+        img = attack_surf
         if not player.facing_right:
-            img = pygame.transform.flip(img, True, False)
+            flip_h = True
+    elif player.is_walking:
+        if player.view_facing == "north" and back_surf is not None:
+            img = back_surf
+        elif player.view_facing == "south":
+            img = idle_surf
+        else:
+            idx = player.walk_frame % len(walk_frames)
+            img = walk_frames[idx]
+            if not player.facing_right:
+                flip_h = True
     else:
         img = idle_surf
+
+    if flip_h:
+        img = pygame.transform.flip(img, True, False)
 
     rect = img.get_rect(midbottom=(int(sx), int(sy + player.radius)))
     surface.blit(img, rect)
@@ -98,14 +123,32 @@ class UIManager:
         self.big_death_font = fonts.gothic_title
         self.hud_font = fonts.body
         self.small_font = fonts.small
-        self._player_idle, self._player_walk_frames = load_player_sprites()
-        if self._player_idle is None or not self._player_walk_frames:
-            self._player_idle, self._player_walk_frames = load_procedural_player_sprites()
+        (
+            self._player_idle,
+            self._player_walk_frames,
+            self._player_attack,
+            self._player_back,
+        ) = load_player_sprites()
         self.death_restart_rect: pygame.Rect | None = None
         self.death_menu_rect: pygame.Rect | None = None
         self.pause_resume_rect: pygame.Rect | None = None
         self.pause_menu_rect: pygame.Rect | None = None
         self.pause_exit_rect: pygame.Rect | None = None
+
+    def set_fonts(self, fonts: GameFonts) -> None:
+        self._fonts = fonts
+        self.title_font = fonts.title_medium
+        self.big_death_font = fonts.gothic_title
+        self.hud_font = fonts.body
+        self.small_font = fonts.small
+
+    def reload_player_sprites(self) -> None:
+        (
+            self._player_idle,
+            self._player_walk_frames,
+            self._player_attack,
+            self._player_back,
+        ) = load_player_sprites()
 
     def draw_world_layer(self, surface: pygame.Surface, state: GameState) -> None:
         cx, cy = state.camera_x, state.camera_y
@@ -160,7 +203,14 @@ class UIManager:
 
         sx, sy = utils.world_to_screen(p.x, p.y, cx, cy)
         _draw_player_sprite(
-            surface, int(sx), int(sy), p, self._player_idle, self._player_walk_frames
+            surface,
+            int(sx),
+            int(sy),
+            p,
+            self._player_idle,
+            self._player_walk_frames,
+            self._player_attack,
+            self._player_back,
         )
 
         for pt in state.particles:

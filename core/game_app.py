@@ -84,7 +84,17 @@ class GameApp:
         self.settings.window_width = w
         self.settings.window_height = h
 
-    def _apply_settings(self) -> None:
+    def _reload_ui_after_video_change(self) -> None:
+        """set_mode invalida fontes no pygame; recarregar após mudar resolução/ecrã."""
+        self.fonts = load_game_fonts()
+        vw, vh = config.VIEWPORT_W, config.VIEWPORT_H
+        self.main_menu.set_fonts(self.fonts)
+        if self.settings_scene:
+            self.settings_scene.set_fonts(self.fonts)
+        self.ui.set_fonts(self.fonts)
+        self.ui.reload_player_sprites()
+
+    def _apply_video_settings(self) -> None:
         try:
             self.screen = display.apply_video_mode(
                 self.settings.window_width,
@@ -100,6 +110,15 @@ class GameApp:
         self.main_menu.on_resize(vw, vh)
         if self.settings_scene:
             self.settings_scene.on_resize(vw, vh)
+        self._reload_ui_after_video_change()
+        try:
+            self.audio.set_master_volume(self.settings.master_volume)
+        except Exception as e:
+            _log.warning("Volume não aplicado: %s", e)
+        save_settings(self.settings)
+
+    def _apply_audio_settings(self) -> None:
+        """Só volume — não chamar set_mode (evita reset de resolução e crash de fontes)."""
         try:
             self.audio.set_master_volume(self.settings.master_volume)
         except Exception as e:
@@ -111,7 +130,8 @@ class GameApp:
             self.settings,
             config.VIEWPORT_W,
             config.VIEWPORT_H,
-            self._apply_settings,
+            self._apply_video_settings,
+            self._apply_audio_settings,
             self.fonts,
         )
         self.scene = AppScene.SETTINGS
@@ -135,7 +155,7 @@ class GameApp:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_F11:
                     self.settings.fullscreen = not self.settings.fullscreen
-                    self._apply_settings()
+                    self._apply_video_settings()
                 if self.scene == AppScene.PLAYING and self.play_state:
                     st = self.play_state
                     if event.key == pygame.K_ESCAPE:

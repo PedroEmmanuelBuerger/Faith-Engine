@@ -31,16 +31,6 @@ ENEMY_KIND_TO_FOLDER: Dict[str, str] = {
 
 PLAYER_DIR = "player"
 
-# Ordem de preferência por animação
-PLAYER_IDLE_NAMES = ("idle.png", "sprite.png")
-PLAYER_WALK_NAMES = ("walk.png", "walk_1.png")
-PLAYER_WALK2_NAMES = ("walk_2.png", "walk_alt.png")
-
-# Legacy paths (raiz de sprites/)
-_LEGACY_IDLE = _SPRITES / "player_idle.png"
-_LEGACY_WALK = _SPRITES / "player_walk.png"
-_LEGACY_WALK2 = _SPRITES / "player_walk_2.png"
-
 _ENEMY_CACHE: Dict[str, pygame.Surface] = {}
 
 
@@ -59,6 +49,14 @@ def _load_png(path: Path) -> Optional[pygame.Surface]:
     except (pygame.error, OSError) as e:
         _log.warning("Erro ao ler sprite %s: %s", path, e)
         return None
+
+
+def _first_existing(paths: List[Path]) -> Optional[pygame.Surface]:
+    for p in paths:
+        surf = _load_png(p)
+        if surf is not None:
+            return surf
+    return None
 
 
 def enemy_folder_for_kind(kind: str) -> str:
@@ -96,43 +94,56 @@ def clear_enemy_sprite_cache() -> None:
 
 
 def load_player_sprites_dynamic() -> Tuple[
-    Optional[pygame.Surface], Optional[List[pygame.Surface]]
+    Optional[pygame.Surface],
+    Optional[List[pygame.Surface]],
+    Optional[pygame.Surface],
+    Optional[pygame.Surface],
 ]:
     """
-    Ordem: assets/sprites/player/ → legacy na raiz → None (caller usa procedural).
+    Prioridade: PNG canónicos na raiz (player_idle.png, player_walk.png, …),
+    depois assets/sprites/player/.
+    Devolve (idle, [walk1, walk2], attack|None, back|None).
     """
     pdir = _SPRITES / PLAYER_DIR
-    idle_s: Optional[pygame.Surface] = None
-    for n in PLAYER_IDLE_NAMES:
-        idle_s = _load_png(pdir / n)
-        if idle_s is not None:
-            break
-    if idle_s is None:
-        idle_s = _load_png(_LEGACY_IDLE)
 
-    walk1: Optional[pygame.Surface] = None
-    for n in PLAYER_WALK_NAMES:
-        walk1 = _load_png(pdir / n)
-        if walk1 is not None:
-            break
-    if walk1 is None:
-        walk1 = _load_png(_LEGACY_WALK)
+    idle = _first_existing(
+        [
+            _SPRITES / "player_idle.png",
+            pdir / "idle.png",
+            pdir / "sprite.png",
+        ]
+    )
 
-    if idle_s is None or walk1 is None:
-        if idle_s is None and walk1 is None:
+    walk1 = _first_existing(
+        [
+            _SPRITES / "player_walk.png",
+            pdir / "walk.png",
+            pdir / "walk_1.png",
+        ]
+    )
+
+    if idle is None or walk1 is None:
+        if idle is None and walk1 is None:
             _log.warning(
-                "Sprites do jogador em falta em assets/sprites/player/ — placeholder procedural"
+                "Sprites do jogador em falta (player_idle.png / player_walk.png na raiz ou player/)"
             )
         else:
-            _log.warning("Sprites do jogador incompletos — placeholder procedural")
-        return None, None
+            _log.warning("Sprites do jogador incompletos (falta idle ou walk)")
+        return None, None, None, None
 
-    walk2: Optional[pygame.Surface] = None
-    for n in PLAYER_WALK2_NAMES:
-        walk2 = _load_png(pdir / n)
-        if walk2 is not None:
-            break
-    if walk2 is None:
-        walk2 = _load_png(_LEGACY_WALK2)
-    walks: List[pygame.Surface] = [walk1, walk2 if walk2 is not None else walk1]
-    return idle_s, walks
+    walk2 = _first_existing(
+        [
+            _SPRITES / "player_walk_2.png",
+            pdir / "walk_2.png",
+            pdir / "walk_alt.png",
+        ]
+    )
+    w2 = walk2 if walk2 is not None else walk1
+    walks: List[pygame.Surface] = [walk1, w2]
+
+    attack = _first_existing(
+        [_SPRITES / "player_attack.png", pdir / "attack.png"]
+    )
+    back = _first_existing([_SPRITES / "player_back.png", pdir / "back.png"])
+
+    return idle, walks, attack, back

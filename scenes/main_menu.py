@@ -32,6 +32,11 @@ class MainMenuScene:
         self.vw = vw
         self.vh = vh
 
+    def set_fonts(self, fonts: GameFonts) -> None:
+        self.title_font = fonts.title_large
+        self.menu_font = fonts.body
+        self.sub_font = fonts.small
+
     def _layout(self) -> Tuple[pygame.Rect, pygame.Rect, pygame.Rect]:
         cx, cy = self.vw // 2, self.vh // 2 + 40
         bw, bh, gap = 280, 48, 14
