@@ -7,6 +7,7 @@ from __future__ import annotations
 import random
 from typing import Any, Dict, List
 
+from core import config as game_config
 from core import sfx, utils
 from entities.enemy import Enemy
 from entities.player import Player
@@ -32,7 +33,7 @@ class GameState:
         self.camera_y = 0.0
 
         self.spawn_timer = 0.0
-        self.spawn_interval = 2.2
+        self.spawn_interval = game_config.SPAWN_INTERVAL_BASE
         self.wave = 1
         self.total_kills = 0
 
@@ -75,6 +76,13 @@ class GameState:
         self.enemy_bullets: List[dict[str, Any]] = []
 
         self.active_weapon_id = "w_dark_bolt"
+        self.weapon_loadout: List[str] = ["w_dark_bolt"]
+        self.weapon_cooldowns: Dict[str, float] = {}
+        self._weapon_base_interval = 0.95
+        self.auto_attack_enabled = False
+        self.weapon_orbit_phase = 0.0
+        self.pickups: List[Dict[str, Any]] = []
+        self.bible_spawn_timer = 28.0
         self.weapon_damage_mult = 1.0
 
         self.synergy_inferno = False
@@ -159,6 +167,11 @@ class GameState:
         if self.level_up_paused:
             return
 
+        self.weapon_orbit_phase += dt * 0.55
+        from systems import pickup_system
+
+        pickup_system.update(self, dt)
+
         self.player.tick_weapon_kick(dt)
 
         self.faith += self.passive_faith_per_second() * dt
@@ -223,6 +236,7 @@ class GameState:
         self.aim_world_x = self.player.x + 140.0
         self.aim_world_y = self.player.y
         self.spawn_timer = 0.0
+        self.spawn_interval = game_config.SPAWN_INTERVAL_BASE
         self.wave = 1
         self.total_kills = 0
         self.xp = 0.0
@@ -242,6 +256,14 @@ class GameState:
         self.death_fade = 0.0
         self.game_paused = False
         self.upgrade_counts = {}
+        self.weapon_loadout = ["w_dark_bolt"]
+        self.weapon_cooldowns.clear()
+        self._weapon_base_interval = 0.95
+        self.auto_attack_enabled = False
+        self.weapon_orbit_phase = 0.0
+        self.pickups.clear()
+        self.bible_spawn_timer = 28.0
+        self.active_weapon_id = "w_dark_bolt"
         if not keep_meta:
             self.prestige_points = 0
             self.prestige_faith_mult = 1.0
