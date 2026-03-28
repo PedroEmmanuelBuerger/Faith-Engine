@@ -78,3 +78,21 @@ def tick_mad_prophet(state: GameState, dt: float) -> None:
         state.faith += 12 + stacks * 4
     else:
         state.player.hp = min(state.player.max_hp, state.player.hp + 10 + stacks * 2)
+
+
+def wave_interval_seconds(state: GameState) -> float:
+    from core import config as gc
+
+    return gc.WAVE_ADVANCE_INTERVAL_BASE + random.uniform(-5.0, 9.0)
+
+
+def advance_wave(state: GameState) -> None:
+    """Avança a onda por tempo; ondas múltiplas de 5 iniciam combate de chefe."""
+    if getattr(state, "in_boss_fight", False):
+        return
+    state.wave = min(99, state.wave + 1)
+    state.wave_timer = wave_interval_seconds(state)
+    if state.wave % 5 == 0:
+        from systems import spawn_system
+
+        spawn_system.begin_boss_wave(state)

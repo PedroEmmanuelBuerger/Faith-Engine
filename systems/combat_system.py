@@ -111,6 +111,33 @@ def _spawn_split_children(state: GameState, parent: Enemy) -> None:
         )
 
 
+def _drop_boss_rewards(state: GameState, x: float, y: float) -> None:
+    from systems import upgrade_system
+
+    if not state.level_up_paused:
+        state.level_up_paused = True
+        state.upgrade_choice_ids = upgrade_system.random_choices(3)
+        state.upgrade_choice_rarities = upgrade_system.roll_rarities(len(state.upgrade_choice_ids))
+
+    from entities.pickup import PICKUP_BIBLE
+
+    for i, ang in enumerate((0.0, 2.15, 4.25)):
+        if len(state.pickups) >= config.MAX_PICKUPS_WORLD:
+            break
+        ox = math.cos(ang) * 52.0
+        oy = math.sin(ang) * 52.0
+        state.pickups.append(
+            {
+                "kind": PICKUP_BIBLE,
+                "x": x + ox,
+                "y": y + oy,
+                "r": 17.0,
+                "pulse": float(i) * 0.4,
+                "boss_drop": True,
+            }
+        )
+
+
 def _drop_miniboss_bible(state: GameState, x: float, y: float) -> None:
     from entities.pickup import PICKUP_BIBLE
 
@@ -138,13 +165,24 @@ def on_enemy_defeated(state: GameState, enemy: Enemy, source: str) -> None:
     from systems import progression_system
 
     xp_gain = enemy.xp_value * (1.9 if getattr(enemy, "is_miniboss", False) else 1.0)
+    if getattr(enemy, "is_boss", False):
+        xp_gain *= 2.2
     progression_system.grant_xp(state, xp_gain)
     state.total_kills += 1
-    if state.total_kills % 18 == 0:
-        state.wave = min(99, state.wave + 1)
 
     particle_fx.spawn_death_burst(state, enemy.x, enemy.y, enemy.kind)
     sfx.play_enemy_death()
+
+    if getattr(enemy, "is_boss", False):
+        state.in_boss_fight = False
+        state.boss_hp_bar_smooth = 0.0
+        state.wave = min(99, state.wave + 1)
+        state.wave_timer = progression_system.wave_interval_seconds(state)
+        particle_fx.spawn_fire_burst(state, enemy.x, enemy.y, 140)
+        particle_fx.spawn_fire_ring(state, enemy.x, enemy.y, 130)
+        state.screen_shake = max(state.screen_shake, 17.0)
+        _drop_boss_rewards(state, enemy.x, enemy.y)
+
     if getattr(enemy, "is_miniboss", False):
         particle_fx.spawn_fire_burst(state, enemy.x, enemy.y, 88)
         state.screen_shake = max(state.screen_shake, 8.0)

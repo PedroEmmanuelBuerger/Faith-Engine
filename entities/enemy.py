@@ -23,6 +23,7 @@ class EnemyKind:
     CARRION_BOMB = "carrion_bomb"
     PENITENT_CHARGER = "charger"
     SCHISM_SPLITTER = "splitter"
+    HIEROPHANT = "hierophant"
 
 
 class Enemy:
@@ -41,6 +42,7 @@ class Enemy:
         explodes: bool = False,
         is_ranged: bool = False,
         is_miniboss: bool = False,
+        is_boss: bool = False,
         split_depth: int = 0,
     ) -> None:
         self.x = float(x)
@@ -57,6 +59,7 @@ class Enemy:
         self.explodes = explodes
         self.is_ranged = is_ranged
         self.is_miniboss = is_miniboss
+        self.is_boss = is_boss
         self.split_depth = split_depth
         self.shoot_cd = 0.0
         self.charmed_until = 0.0
@@ -66,6 +69,7 @@ class Enemy:
         self.kb_vy = 0.0
         self._charger_cd = 0.8
         self._dash_t = 0.0
+        self._boss_burst_cd = 1.15
 
     def update(self, dt: float, state: GameState) -> None:
         self.hit_flash = max(0.0, self.hit_flash - dt * 6.5)
@@ -82,6 +86,30 @@ class Enemy:
         dx, dy = tx - self.x, ty - self.y
         dist = math.hypot(dx, dy) or 1.0
         ux, uy = dx / dist, dy / dist
+
+        if self.is_boss and self.kind == EnemyKind.HIEROPHANT:
+            self._boss_burst_cd -= dt
+            perp_x, perp_y = -uy, ux
+            blend = 0.38
+            self.x += (ux * blend + perp_x * (1.0 - blend)) * self.speed * dt
+            self.y += (uy * blend + perp_y * (1.0 - blend)) * self.speed * dt
+            if self._boss_burst_cd <= 0.0:
+                self._boss_burst_cd = 2.25 + random.uniform(0, 0.6)
+                n = 11
+                for i in range(n):
+                    ang = (math.tau / n) * i + random.uniform(-0.06, 0.06)
+                    spd = 195.0 + random.uniform(-15, 25)
+                    state.enemy_bullets.append(
+                        {
+                            "x": self.x + math.cos(ang) * (self.radius + 10),
+                            "y": self.y + math.sin(ang) * (self.radius + 10),
+                            "vx": math.cos(ang) * spd,
+                            "vy": math.sin(ang) * spd,
+                            "life": 3.0,
+                            "dmg": self.damage * 0.68,
+                        }
+                    )
+            return
 
         if self.charmed_until > 0:
             self.charmed_until -= dt
@@ -170,4 +198,6 @@ def stats_for_kind(
         return base_hp * 0.62, base_spd * 1.42, base_dmg * 0.82, base_xp * 1.05, 12.0
     if kind == EnemyKind.SCHISM_SPLITTER:
         return base_hp * 1.05, base_spd * 0.82, base_dmg * 0.95, base_xp * 1.15, 17.0
+    if kind == EnemyKind.HIEROPHANT:
+        return base_hp * 2.4, base_spd * 0.58, base_dmg * 1.02, base_xp * 4.0, 36.0
     return base_hp, base_spd, base_dmg, base_xp, 14.0

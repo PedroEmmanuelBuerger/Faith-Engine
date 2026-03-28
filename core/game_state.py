@@ -18,10 +18,13 @@ from world.chunk_world import ChunkWorld
 
 
 class GameState:
-    def __init__(self, world_seed: int | None = None) -> None:
+    def __init__(self, world_seed: int | None = None, difficulty: str = "medium") -> None:
         seed = world_seed if world_seed is not None else random.randint(1, 2**31 - 1)
         self.world_seed = seed
         self.world = ChunkWorld(seed)
+
+        d = (difficulty or "medium").lower()
+        self.difficulty = d if d in ("easy", "medium", "hard") else "medium"
 
         self.player = Player(0.0, 0.0)
         self.aim_world_x = self.player.x + 140.0
@@ -35,6 +38,9 @@ class GameState:
         self.spawn_timer = 0.0
         self.spawn_interval = game_config.SPAWN_INTERVAL_BASE
         self.wave = 1
+        self.wave_timer = progression_system.wave_interval_seconds(self)
+        self.in_boss_fight = False
+        self.boss_hp_bar_smooth = 0.0
         self.total_kills = 0
 
         self.xp = 0.0
@@ -197,18 +203,39 @@ class GameState:
         self.faith += self.passive_faith_per_second() * dt
         progression_system.tick_mad_prophet(self, dt)
 
-        self.miniboss_timer -= dt
-        if self.miniboss_timer <= 0:
-            spawn_system.try_spawn_miniboss(self)
-            self.miniboss_timer = 78.0 + random.uniform(-10.0, 20.0)
+        if not self.in_boss_fight:
+            self.wave_timer -= dt
+            if self.wave_timer <= 0:
+                progression_system.advance_wave(self)
 
-        self.spawn_timer -= dt
-        if self.spawn_timer <= 0:
-            spawn_system.spawn_enemy(self)
-            self.spawn_timer = max(
-                0.28,
-                self.spawn_interval / self.spawn_pressure,
+        if self.in_boss_fight:
+            boss = next(
+                (
+                    e
+                    for e in self.enemies
+                    if getattr(e, "is_boss", False) and e.hp > 0
+                ),
+                None,
             )
+            if boss is not None:
+                tgt = boss.hp / max(1e-3, boss.max_hp)
+                self.boss_hp_bar_smooth += (tgt - self.boss_hp_bar_smooth) * min(
+                    1.0, dt * 15.0
+                )
+
+        if not self.in_boss_fight:
+            self.miniboss_timer -= dt
+            if self.miniboss_timer <= 0:
+                spawn_system.try_spawn_miniboss(self)
+                self.miniboss_timer = 78.0 + random.uniform(-10.0, 20.0)
+
+        if not self.in_boss_fight:
+            self.spawn_timer -= dt
+            if self.spawn_timer <= 0:
+                spawn_system.spawn_enemy(self)
+                iv = self.spawn_interval / self.spawn_pressure
+                iv *= spawn_system.spawn_interval_multiplier(self)
+                self.spawn_timer = max(0.28, iv)
 
         for e in self.enemies:
             e.update(dt, self)
@@ -269,6 +296,9 @@ class GameState:
         self.spawn_timer = 0.0
         self.spawn_interval = game_config.SPAWN_INTERVAL_BASE
         self.wave = 1
+        self.wave_timer = progression_system.wave_interval_seconds(self)
+        self.in_boss_fight = False
+        self.boss_hp_bar_smooth = 0.0
         self.total_kills = 0
         self.xp = 0.0
         self.level = 1

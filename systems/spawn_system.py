@@ -1,6 +1,6 @@
 """
 Spawn em anel à volta do jogador (mapa infinito).
-Fases de dificuldade, mini-chefes e variedade de tipos.
+Fases, mini-chefes, chefes de onda (5, 10, 15…) e multiplicadores de dificuldade.
 """
 
 from __future__ import annotations
@@ -28,7 +28,6 @@ _BASE_KINDS = (
     EnemyKind.SCHISM_SPLITTER,
 )
 
-# Pesos por fase: (early, mid, late) — normalizados depois
 _PHASE_WEIGHT_ROWS: Tuple[Tuple[float, ...], ...] = (
     (0.16, 0.16, 0.12, 0.11, 0.14, 0.07, 0.11, 0.09, 0.02, 0.02),
     (0.14, 0.14, 0.11, 0.10, 0.13, 0.08, 0.11, 0.10, 0.05, 0.04),
@@ -44,10 +43,26 @@ def _phase_index(t: float) -> int:
     return 2
 
 
+def spawn_count_multiplier(state: GameState) -> float:
+    d = getattr(state, "difficulty", "medium")
+    return {"easy": 0.62, "hard": 1.42}.get(d, 1.0)
+
+
+def spawn_interval_multiplier(state: GameState) -> float:
+    """>1 = spawn mais lento (menos inimigos no tempo)."""
+    d = getattr(state, "difficulty", "medium")
+    return {"easy": 1.32, "hard": 0.78}.get(d, 1.0)
+
+
+def enemy_speed_run_multiplier(state: GameState) -> float:
+    """Só velocidade de movimento — não altera HP nem dano."""
+    d = getattr(state, "difficulty", "medium")
+    return {"easy": 0.8, "hard": 1.24}.get(d, 1.0)
+
+
 def _weights_for_state(state: GameState) -> List[float]:
     row = _PHASE_WEIGHT_ROWS[_phase_index(state.difficulty_time)]
     w = list(row)
-    # Onda alta: mais caos (charger / splitter)
     if state.wave >= 6:
         w[8] += 0.04
         w[9] += 0.03
@@ -88,6 +103,7 @@ def _spawn_enemy_at(
     kind: str,
     *,
     is_miniboss: bool = False,
+    is_boss: bool = False,
 ) -> None:
     if len(state.enemies) >= config.MAX_ENEMIES_ALIVE:
         return
@@ -110,6 +126,8 @@ def _spawn_enemy_at(
         radius *= 1.38
         xp *= 1.25
 
+    spd *= enemy_speed_run_multiplier(state)
+
     explodes = kind == EnemyKind.CARRION_BOMB
     is_ranged = kind == EnemyKind.HERETIC
 
@@ -126,6 +144,7 @@ def _spawn_enemy_at(
             explodes=explodes,
             is_ranged=is_ranged,
             is_miniboss=is_miniboss,
+            is_boss=is_boss,
         )
     )
 
@@ -138,6 +157,8 @@ def _spawn_one(state: GameState) -> None:
 
 
 def spawn_enemy(state: GameState) -> None:
+    if getattr(state, "in_boss_fight", False):
+        return
     pressure = state.spawn_pressure
     count = 1
     extra = int((pressure - 1.0) * 0.95)
@@ -147,6 +168,8 @@ def spawn_enemy(state: GameState) -> None:
     if state.wave >= 8 and random.random() < 0.16:
         count += 1
 
+    count = max(1, int(round(count * spawn_count_multiplier(state))))
+
     for _ in range(count):
         if len(state.enemies) >= config.MAX_ENEMIES_ALIVE:
             break
@@ -155,6 +178,8 @@ def spawn_enemy(state: GameState) -> None:
 
 
 def try_spawn_miniboss(state: GameState) -> None:
+    if getattr(state, "in_boss_fight", False):
+        return
     if len(state.enemies) >= config.MAX_ENEMIES_ALIVE - 1:
         return
     x, y = _random_point_outside_view(state)
@@ -167,3 +192,51 @@ def try_spawn_miniboss(state: GameState) -> None:
         )
     )
     _spawn_enemy_at(state, x, y, kind, is_miniboss=True)
+
+
+def spawn_boss(state: GameState) -> None:
+    """Um único chefe; HP alto, dano base sem buff de dificuldade."""
+    state.enemies.clear()
+    x, y = _random_point_outside_view(state)
+    base_hp = 24.0
+    base_spd = 68.0
+    base_dmg = 7.0
+    base_xp = 7.0
+    phase = _phase_index(state.difficulty_time)
+    spd_scale = (0.88, 1.0, 1.06)[phase]
+    base_spd *= spd_scale
+
+    _, spd_tpl, dmg_tpl, xp_tpl, rad_tpl = stats_for_kind(
+        EnemyKind.HIEROPHANT, base_hp, base_spd, base_dmg, base_xp
+    )
+    max_hp = 265.0 + state.wave * 48.0
+    spd = spd_tpl * enemy_speed_run_multiplier(state)
+    dmg = dmg_tpl
+    xp = xp_tpl * 1.15
+    radius = max(36.0, rad_tpl + state.wave * 0.35)
+
+    state.enemies.append(
+        Enemy(
+            x,
+            y,
+            max_hp=max_hp,
+            speed=spd,
+            damage=dmg,
+            radius=radius,
+            xp_value=xp,
+            kind=EnemyKind.HIEROPHANT,
+            sprite_key="hierophant",
+            explodes=False,
+            is_ranged=False,
+            is_miniboss=False,
+            is_boss=True,
+        )
+    )
+
+
+def begin_boss_wave(state: GameState) -> None:
+    """Limpa inimigos normais e coloca só o chefe."""
+    state.enemy_bullets.clear()
+    state.in_boss_fight = True
+    state.boss_hp_bar_smooth = 1.0
+    spawn_boss(state)

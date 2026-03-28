@@ -29,6 +29,8 @@ def _spawn_position(state: GameState) -> tuple[float, float]:
 
 
 def try_spawn_bibles(state: GameState, dt: float) -> None:
+    if getattr(state, "in_boss_fight", False):
+        return
     if state.level_up_paused or state.game_paused or state.death_mode != "alive":
         return
     state.bible_spawn_timer -= dt
