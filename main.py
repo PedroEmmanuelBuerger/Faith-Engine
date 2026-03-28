@@ -3,7 +3,7 @@ Culto do Infinito — loop principal (Pygame).
 """
 import pygame
 
-from player import Player
+from game_state import GameState
 
 SCREEN_W, SCREEN_H = 960, 540
 FPS = 60
@@ -17,7 +17,7 @@ def main() -> None:
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("segoeui", 18)
 
-    player = Player(SCREEN_W / 2, SCREEN_H / 2)
+    state = GameState(SCREEN_W, SCREEN_H)
     running = True
 
     while running:
@@ -33,15 +33,17 @@ def main() -> None:
         dy = (keys[pygame.K_s] or keys[pygame.K_DOWN]) - (
             keys[pygame.K_w] or keys[pygame.K_UP]
         )
-        player.move(dx, dy, dt, SCREEN_W, SCREEN_H)
+        p = state.player
+        p.move(dx, dy, dt, SCREEN_W, SCREEN_H)
+        state.update(dt)
 
         screen.fill(BG_COLOR)
-        pygame.draw.circle(
-            screen, (200, 180, 255), (int(player.x), int(player.y)), player.radius
-        )
+        for e in state.enemies:
+            pygame.draw.circle(screen, (200, 80, 90), (int(e.x), int(e.y)), int(e.radius))
+        pygame.draw.circle(screen, (200, 180, 255), (int(p.x), int(p.y)), p.radius)
 
         hud = font.render(
-            f"HP {int(player.hp)}/{int(player.max_hp)}  |  Dano {player.effective_damage:.0f}  |  Alcance {player.effective_range:.0f}",
+            f"HP {int(p.hp)}/{int(p.max_hp)}  |  Inimigos: {len(state.enemies)}  |  Onda {state.wave}",
             True,
             (230, 220, 255),
         )
