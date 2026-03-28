@@ -13,13 +13,21 @@ import pygame
 
 from core import config
 from core import relic_store
+from core.settings_store import Settings, save_settings
 from ui.font_loader import GameFonts
+
+_DIFF_OPTIONS = (
+    ("easy", "Fácil"),
+    ("medium", "Médio"),
+    ("hard", "Difícil"),
+)
 
 
 class MainMenuScene:
-    def __init__(self, vw: int, vh: int, fonts: GameFonts) -> None:
+    def __init__(self, vw: int, vh: int, fonts: GameFonts, settings: Settings) -> None:
         self.vw = vw
         self.vh = vh
+        self._settings = settings
         self.title_font = fonts.title_large
         self.menu_font = fonts.body
         self.sub_font = fonts.small
@@ -36,6 +44,20 @@ class MainMenuScene:
         self._relic_buy_faith: Optional[pygame.Rect] = None
         self._last_relic_msg = ""
         self._relic_msg_t = 0.0
+        self._diff_easy: Optional[pygame.Rect] = None
+        self._diff_med: Optional[pygame.Rect] = None
+        self._diff_hard: Optional[pygame.Rect] = None
+
+    def _layout_difficulty_buttons(self) -> None:
+        cx = self.vw // 2
+        cy = self.vh // 2 + 24
+        tri_w, tri_gap = 96, 8
+        total = 3 * tri_w + 2 * tri_gap
+        dx0 = cx - total // 2
+        tri_y = cy - 78
+        self._diff_easy = pygame.Rect(dx0, tri_y, tri_w, 34)
+        self._diff_med = pygame.Rect(dx0 + tri_w + tri_gap, tri_y, tri_w, 34)
+        self._diff_hard = pygame.Rect(dx0 + 2 * (tri_w + tri_gap), tri_y, tri_w, 34)
 
     def on_resize(self, vw: int, vh: int) -> None:
         self.vw = vw
@@ -198,6 +220,20 @@ class MainMenuScene:
                 self._last_relic_msg = msg
                 self._relic_msg_t = 3.5
                 return None
+            return None
+
+        self._layout_difficulty_buttons()
+        if self._diff_easy and self._diff_easy.collidepoint(pos):
+            self._settings.difficulty = "easy"
+            save_settings(self._settings)
+            return None
+        if self._diff_med and self._diff_med.collidepoint(pos):
+            self._settings.difficulty = "medium"
+            save_settings(self._settings)
+            return None
+        if self._diff_hard and self._diff_hard.collidepoint(pos):
+            self._settings.difficulty = "hard"
+            save_settings(self._settings)
             return None
 
         if self._btn_start and self._btn_start.collidepoint(pos):

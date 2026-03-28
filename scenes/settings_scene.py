@@ -9,7 +9,7 @@ from typing import Callable, Optional, Tuple
 import pygame
 
 from core import config
-from core.settings_store import RESOLUTION_PRESETS, Settings
+from core.settings_store import RESOLUTION_PRESETS, Settings, save_settings
 from ui.font_loader import GameFonts
 
 
@@ -36,6 +36,9 @@ class SettingsScene:
         self._btn_full: Optional[pygame.Rect] = None
         self._slider_rect: Optional[pygame.Rect] = None
         self._btn_back: Optional[pygame.Rect] = None
+        self._btn_diff_easy: Optional[pygame.Rect] = None
+        self._btn_diff_med: Optional[pygame.Rect] = None
+        self._btn_diff_hard: Optional[pygame.Rect] = None
         self._drag_vol = False
 
     def on_resize(self, vw: int, vh: int) -> None:
@@ -61,7 +64,14 @@ class SettingsScene:
 
     def _layout(self) -> None:
         cx = self.vw // 2
-        y = self.vh // 3
+        y = self.vh // 3 + 36
+        tri_w, tri_gap = 108, 10
+        total_tri = 3 * tri_w + 2 * tri_gap
+        x_left = cx - total_tri // 2
+        y_diff = self.vh // 3 - 6
+        self._btn_diff_easy = pygame.Rect(x_left, y_diff, tri_w, 36)
+        self._btn_diff_med = pygame.Rect(x_left + tri_w + tri_gap, y_diff, tri_w, 36)
+        self._btn_diff_hard = pygame.Rect(x_left + 2 * (tri_w + tri_gap), y_diff, tri_w, 36)
         bw, bh, gap = 360, 44, 16
         self._btn_res = pygame.Rect(cx - bw // 2, y, bw, bh)
         self._btn_full = pygame.Rect(cx - bw // 2, y + bh + gap, bw, bh)
@@ -91,7 +101,34 @@ class SettingsScene:
         t = self.title_font.render("Definições", True, (235, 215, 255))
         surface.blit(t, t.get_rect(center=(self.vw // 2, 70)))
 
-        assert self._btn_res and self._btn_full and self._slider_rect and self._btn_back
+        assert (
+            self._btn_res
+            and self._btn_full
+            and self._slider_rect
+            and self._btn_back
+            and self._btn_diff_easy
+            and self._btn_diff_med
+            and self._btn_diff_hard
+        )
+        diff_lbl = self.small_font.render("Dificuldade da run", True, (175, 165, 200))
+        surface.blit(diff_lbl, (self._btn_diff_easy.x, self._btn_diff_easy.y - 22))
+
+        cur = self.settings.difficulty.lower()
+        mx, my = pygame.mouse.get_pos()
+        for r, key, name in (
+            (self._btn_diff_easy, "easy", "Fácil"),
+            (self._btn_diff_med, "medium", "Médio"),
+            (self._btn_diff_hard, "hard", "Difícil"),
+        ):
+            sel = key == cur
+            hov = r.collidepoint(mx, my)
+            bg = (62, 52, 92) if sel else ((52, 44, 78) if hov else (40, 34, 58))
+            br = (255, 210, 130) if sel else ((185, 160, 220) if hov else (95, 80, 125))
+            pygame.draw.rect(surface, bg, r, border_radius=10)
+            pygame.draw.rect(surface, br, r, 3 if sel else 2, border_radius=10)
+            t = self.body_font.render(name, True, (240, 235, 255))
+            surface.blit(t, t.get_rect(center=r.center))
+
         w, h = RESOLUTION_PRESETS[self._res_index]
         res_label = f"Resolução: {w} × {h} (clique para mudar)"
         self._draw_button(surface, self._btn_res, res_label)
@@ -126,8 +163,28 @@ class SettingsScene:
 
     def handle_mouse_down(self, pos: Tuple[int, int], button: int) -> Optional[str]:
         self._layout()
-        assert self._btn_res and self._btn_full and self._slider_rect and self._btn_back
+        assert (
+            self._btn_res
+            and self._btn_full
+            and self._slider_rect
+            and self._btn_back
+            and self._btn_diff_easy
+            and self._btn_diff_med
+            and self._btn_diff_hard
+        )
         if button == 1:
+            if self._btn_diff_easy.collidepoint(pos):
+                self.settings.difficulty = "easy"
+                save_settings(self.settings)
+                return None
+            if self._btn_diff_med.collidepoint(pos):
+                self.settings.difficulty = "medium"
+                save_settings(self.settings)
+                return None
+            if self._btn_diff_hard.collidepoint(pos):
+                self.settings.difficulty = "hard"
+                save_settings(self.settings)
+                return None
             if self._btn_res.collidepoint(pos):
                 self._res_index = (self._res_index + 1) % len(RESOLUTION_PRESETS)
                 self._apply_resolution_preset()

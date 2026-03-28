@@ -75,7 +75,7 @@ class GameApp:
 
         vw, vh = self.screen.get_size()
         self.fonts = load_game_fonts()
-        self.main_menu = MainMenuScene(vw, vh, self.fonts)
+        self.main_menu = MainMenuScene(vw, vh, self.fonts, self.settings)
         self.settings_scene: SettingsScene | None = None
         self.play_state: GameState | None = None
         self.saved_prestige_points: int = 0
@@ -143,7 +143,7 @@ class GameApp:
         game_logging.log_state("Cena: SETTINGS")
 
     def _start_play(self) -> None:
-        self.play_state = GameState()
+        self.play_state = GameState(difficulty=self.settings.difficulty)
         if self.saved_prestige_points > 0:
             self.play_state.prestige_points = self.saved_prestige_points
             self.play_state.prestige_faith_mult = 1.0 + 0.12 * self.saved_prestige_points
