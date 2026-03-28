@@ -15,7 +15,9 @@ WORLD_H = 10_000_000.0
 
 TILE_SIZE = 48
 PROJECTILE_MAX_DIST_FROM_PLAYER = 640.0
-MAX_ENEMIES_ALIVE = 140
+MAX_ENEMIES_ALIVE = 175
+# Intervalo base entre “ticks” de spawn (segundos); a pressão de onda reduz o valor efetivo.
+SPAWN_INTERVAL_BASE = 1.65
 
 GAME_TITLE = "Culto do Infinito"
 

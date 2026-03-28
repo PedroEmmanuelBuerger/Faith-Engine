@@ -56,7 +56,7 @@ def _spawn_one(state: GameState) -> None:
     kind = random.choices(_KINDS, weights=_WEIGHTS, k=1)[0]
 
     base_hp = 24.0
-    base_spd = 58.0
+    base_spd = 68.0
     base_dmg = 7.0
     base_xp = 7.0
 
@@ -84,11 +84,11 @@ def _spawn_one(state: GameState) -> None:
 def spawn_enemy(state: GameState) -> None:
     pressure = state.spawn_pressure
     count = 1
-    extra = int((pressure - 1.0) * 0.72)
-    count += min(3, max(0, extra))
-    if state.wave >= 4 and random.random() < 0.18:
+    extra = int((pressure - 1.0) * 0.95)
+    count += min(4, max(0, extra))
+    if state.wave >= 3 and random.random() < 0.26:
         count += 1
-    if state.wave >= 10 and random.random() < 0.1:
+    if state.wave >= 8 and random.random() < 0.16:
         count += 1
 
     for _ in range(count):
