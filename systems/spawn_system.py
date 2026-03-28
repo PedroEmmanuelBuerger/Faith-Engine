@@ -1,5 +1,6 @@
 """
 Spawn de inimigos nas bordas do mundo, fora da vista da câmara.
+Pressão aumenta quantidade e variedade — não HP/dano base por tempo.
 """
 
 from __future__ import annotations
@@ -15,20 +16,24 @@ if TYPE_CHECKING:
 
 _KINDS = (
     EnemyKind.CORRUPT_PRIEST,
-    EnemyKind.POSSESSED_STATUE,
     EnemyKind.SHADOW_CREATURE,
+    EnemyKind.POSSESSED_STATUE,
+    EnemyKind.SKITTER,
+    EnemyKind.BULWARK,
+    EnemyKind.HERETIC,
+    EnemyKind.CARRION_BOMB,
 )
+
+_WEIGHTS = (0.22, 0.18, 0.12, 0.18, 0.08, 0.12, 0.10)
 
 
 def _random_point_outside_view(state: GameState) -> tuple[float, float]:
-    """Ponto no mundo, fora do retângulo da câmara (com margem)."""
     cx, cy = state.camera_x, state.camera_y
     vw, vh = config.VIEWPORT_W, config.VIEWPORT_H
     m = 100.0
     left, right = cx - m, cx + vw + m
     top, bottom = cy - m, cy + vh + m
 
-    # Escolhe uma “faixa” à volta do ecrã visível
     zone = random.randint(0, 7)
     if zone == 0:
         return random.uniform(0, config.WORLD_W), random.uniform(0, max(0, top))
@@ -38,30 +43,24 @@ def _random_point_outside_view(state: GameState) -> tuple[float, float]:
         return random.uniform(0, max(0, left)), random.uniform(0, config.WORLD_H)
     if zone == 3:
         return random.uniform(min(config.WORLD_W, right), config.WORLD_W), random.uniform(0, config.WORLD_H)
-    # cantos / bordas finas
     return random.uniform(0, config.WORLD_W), random.choice(
         [random.uniform(0, 80), random.uniform(config.WORLD_H - 80, config.WORLD_H)]
     )
 
 
-def spawn_enemy(state: GameState) -> None:
-    scale = 1.0 + (state.wave - 1) * 0.08
-    diff = state.difficulty_mult
+def _spawn_one(state: GameState) -> None:
     x, y = _random_point_outside_view(state)
+    kind = random.choices(_KINDS, weights=_WEIGHTS, k=1)[0]
 
-    kind = random.choices(
-        _KINDS,
-        weights=[0.45, 0.30, 0.25],
-        k=1,
-    )[0]
-
-    base_hp = (22 + state.wave * 5) * diff
-    base_spd = (55 + min(state.wave, 25) * 2) * (1.0 + (diff - 1.0) * 0.35)
-    base_dmg = (6 + state.wave * 0.4) * diff
-    base_xp = (6 + state.wave * 0.5) * (0.85 + diff * 0.08)
+    base_hp = 24.0
+    base_spd = 58.0
+    base_dmg = 7.0
+    base_xp = 7.0
 
     hp, spd, dmg, xp, radius = stats_for_kind(kind, base_hp, base_spd, base_dmg, base_xp)
-    hp *= scale
+
+    explodes = kind == EnemyKind.CARRION_BOMB
+    is_ranged = kind == EnemyKind.HERETIC
 
     x = max(radius, min(config.WORLD_W - radius, x))
     y = max(radius, min(config.WORLD_H - radius, y))
@@ -76,5 +75,21 @@ def spawn_enemy(state: GameState) -> None:
             radius=radius,
             xp_value=xp,
             kind=kind,
+            explodes=explodes,
+            is_ranged=is_ranged,
         )
     )
+
+
+def spawn_enemy(state: GameState) -> None:
+    pressure = state.spawn_pressure
+    count = 1
+    extra = int((pressure - 1.0) * 0.72)
+    count += min(3, max(0, extra))
+    if state.wave >= 4 and random.random() < 0.18:
+        count += 1
+    if state.wave >= 10 and random.random() < 0.1:
+        count += 1
+
+    for _ in range(count):
+        _spawn_one(state)
