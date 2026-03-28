@@ -1,0 +1,202 @@
+"""
+Estado central da partida: mundo, câmara, entidades e flags de UI.
+A lógica pesada fica em systems/; aqui orquestramos o tick.
+"""
+
+from __future__ import annotations
+
+from typing import Dict, List
+
+from core import config, utils
+from entities.enemy import Enemy
+from entities.player import Player
+from entities.projectile import Projectile
+from effects import particles as particle_fx
+from systems import combat_system, progression_system, spawn_system, upgrade_system
+
+
+class GameState:
+    def __init__(self) -> None:
+        self.player = Player(config.WORLD_W / 2, config.WORLD_H / 2)
+        self.enemies: List[Enemy] = []
+        self.projectiles: List[Projectile] = []
+
+        self.camera_x = 0.0
+        self.camera_y = 0.0
+
+        self.spawn_timer = 0.0
+        self.spawn_interval = 2.2
+        self.wave = 1
+        self.total_kills = 0
+
+        self.xp = 0.0
+        self.level = 1
+        self.level_up_paused = False
+        self.xp_to_next = 30.0
+        progression_system.recalc_xp_to_next(self)
+
+        self.upgrade_counts: Dict[str, int] = {}
+        self.upgrade_choice_ids: List[str] = []
+        self.synergy_zeal_active = False
+
+        self.faith = 0.0
+        self.followers = 1.0
+        self.faith_rate_multiplier = 1.0
+        self.prestige_faith_mult = 1.0
+        self.prestige_points = 0
+
+        self.mad_prophet_stacks = 0
+        self.mad_prophet_timer = 0.0
+        self._prophet_dmg_left = 0.0
+        self._prophet_spd_left = 0.0
+
+        self.contact_cooldown = 0.6
+        self._enemy_hit_timer: dict[int, float] = {}
+
+        self.particles: List[dict] = []
+        self.screen_shake = 0.0
+        self.damage_flash = 0.0
+
+        self.difficulty_time = 0.0
+
+        # Morte: fade + clique para recomeçar
+        self.death_mode = "alive"  # alive | fading | await_click
+        self.death_fade = 0.0
+
+        upgrade_system.refresh_stats(self)
+        self._update_camera()
+
+    @property
+    def difficulty_mult(self) -> float:
+        return 1.0 + self.difficulty_time * 0.018
+
+    def passive_faith_per_second(self) -> float:
+        base = 0.35 * self.followers
+        return base * self.faith_rate_multiplier
+
+    def add_click_faith(self) -> None:
+        self.faith += 1.2 * self.faith_rate_multiplier
+
+    def can_prestige(self) -> bool:
+        return (
+            self.faith >= 400.0
+            and not self.level_up_paused
+            and self.death_mode == "alive"
+        )
+
+    def do_prestige(self) -> bool:
+        if not self.can_prestige():
+            return False
+        self.prestige_points += 1
+        self.reset_run(keep_meta=True)
+        return True
+
+    def prophet_projectile_damage_mult(self) -> float:
+        return 1.35 if self._prophet_dmg_left > 0 else 1.0
+
+    def prophet_projectile_speed_mult(self) -> float:
+        return 1.28 if self._prophet_spd_left > 0 else 1.0
+
+    def _update_camera(self) -> None:
+        p = self.player
+        self.camera_x = utils.clamp(
+            p.x - config.VIEWPORT_W / 2,
+            0,
+            max(0, config.WORLD_W - config.VIEWPORT_W),
+        )
+        self.camera_y = utils.clamp(
+            p.y - config.VIEWPORT_H / 2,
+            0,
+            max(0, config.WORLD_H - config.VIEWPORT_H),
+        )
+
+    def on_enemy_killed(self, enemy: Enemy) -> None:
+        progression_system.grant_xp(self, enemy.xp_value)
+        self.total_kills += 1
+        if self.total_kills % 18 == 0:
+            self.wave = min(99, self.wave + 1)
+
+    def update(self, dt: float) -> None:
+        self.difficulty_time += dt
+        particle_fx.update_particles(self, dt)
+
+        if self.death_mode == "fading":
+            self.death_fade += dt / 1.35
+            self.screen_shake = max(self.screen_shake, 3.0)
+            if self.death_fade >= 1.0:
+                self.death_fade = 1.0
+                self.death_mode = "await_click"
+            return
+
+        if self.death_mode == "await_click":
+            return
+
+        if self.level_up_paused:
+            return
+
+        self.faith += self.passive_faith_per_second() * dt
+        progression_system.tick_mad_prophet(self, dt)
+
+        self.spawn_timer -= dt
+        if self.spawn_timer <= 0:
+            spawn_system.spawn_enemy(self)
+            self.spawn_timer = max(
+                0.35,
+                self.spawn_interval
+                / (1.0 + self.wave * 0.04 + self.difficulty_time * 0.02),
+            )
+
+        target = (self.player.x, self.player.y)
+        for e in self.enemies:
+            e.update(dt, target)
+
+        combat_system.update_contact_damage(self, dt)
+        combat_system.update_projectiles(self, dt)
+
+        self._update_camera()
+
+        if self.player.hp <= 0 and self.death_mode == "alive":
+            self.death_mode = "fading"
+            self.death_fade = 0.0
+            self.screen_shake = max(self.screen_shake, 14.0)
+
+    def move_player(self, dx: float, dy: float, dt: float) -> None:
+        if self.level_up_paused or self.death_mode != "alive" or self.player.hp <= 0:
+            return
+        self.player.move(dx, dy, dt, config.WORLD_W, config.WORLD_H)
+        self._update_camera()
+
+    def select_upgrade(self, index: int) -> None:
+        progression_system.select_upgrade(self, index)
+
+    def reset_run(self, keep_meta: bool = False) -> None:
+        self.enemies.clear()
+        self.projectiles.clear()
+        self._enemy_hit_timer.clear()
+        self.player = Player(config.WORLD_W / 2, config.WORLD_H / 2)
+        self.spawn_timer = 0.0
+        self.wave = 1
+        self.total_kills = 0
+        self.xp = 0.0
+        self.level = 1
+        progression_system.recalc_xp_to_next(self)
+        self.level_up_paused = False
+        self.upgrade_choice_ids = []
+        self.faith = 0.0
+        self.mad_prophet_timer = 0.0
+        self._prophet_dmg_left = 0.0
+        self._prophet_spd_left = 0.0
+        self.difficulty_time = 0.0
+        self.particles.clear()
+        self.screen_shake = 0.0
+        self.damage_flash = 0.0
+        self.death_mode = "alive"
+        self.death_fade = 0.0
+        self.upgrade_counts = {}
+        if not keep_meta:
+            self.prestige_points = 0
+            self.prestige_faith_mult = 1.0
+        else:
+            self.prestige_faith_mult = 1.0 + 0.12 * self.prestige_points
+        upgrade_system.refresh_stats(self)
+        self._update_camera()
