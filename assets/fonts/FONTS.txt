@@ -1,0 +1,6 @@
+Coloca aqui os ficheiros TTF (Google Fonts / licença Open Font License):
+
+  Cinzel-Bold.ttf ou Cinzel-Regular.ttf  →  https://fonts.google.com/specimen/Cinzel
+  UnifrakturCook-Bold.ttf (opcional)     →  https://fonts.google.com/specimen/Unifraktur+Cook
+
+Sem estes ficheiros, o jogo usa fontes do sistema com nomes semelhantes.
