@@ -192,6 +192,21 @@ def spawn_lightning_jolt(
         )
 
 
+def spawn_bible_collect(state: Any, x: float, y: float) -> None:
+    for _ in range(28):
+        ang = random.uniform(0, math.tau)
+        spd = random.uniform(60, 220)
+        _add(
+            state,
+            x,
+            y,
+            math.cos(ang) * spd,
+            math.sin(ang) * spd,
+            random.uniform(0.35, 0.65),
+            random.choice(((255, 230, 140), (240, 200, 100), (255, 255, 220), (200, 220, 255))),
+        )
+
+
 def spawn_possession_flash(state: Any, x: float, y: float) -> None:
     for _ in range(20):
         ang = random.uniform(0, math.tau)
