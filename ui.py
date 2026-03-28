@@ -52,6 +52,14 @@ def draw_hud(
     surface.blit(
         small.render("Clique esquerdo: ganhar Fé", True, (180, 170, 210)), (12, 52)
     )
+    surface.blit(
+        small.render(
+            f"Pressão do vazio: x{state.difficulty_mult:.2f}",
+            True,
+            (160, 150, 190),
+        ),
+        (240, 52),
+    )
 
     # Lista compacta de upgrades ativos
     y = 72

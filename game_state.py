@@ -58,6 +58,9 @@ class GameState:
         self.screen_shake = 0.0
         self.damage_flash = 0.0
 
+        # Dificuldade global ao longo do tempo
+        self.difficulty_time = 0.0
+
         upgrades.refresh_stats(self)
 
     def passive_faith_per_second(self) -> float:
@@ -69,12 +72,18 @@ class GameState:
         """Clique: injeção manual de fé (loop viciante)."""
         self.faith += 1.2 * self.faith_rate_multiplier
 
+    @property
+    def difficulty_mult(self) -> float:
+        """Aumenta HP/dano dos inimigos com o tempo sobrevivido."""
+        return 1.0 + self.difficulty_time * 0.018
+
     def spawn_enemy(self) -> None:
         scale = 1.0 + (self.wave - 1) * 0.08
+        diff = self.difficulty_mult
         x, y = random_edge_position(self.width, self.height)
-        hp = 22 + self.wave * 5
-        spd = 55 + min(self.wave, 25) * 2
-        dmg = 6 + self.wave * 0.4
+        hp = (22 + self.wave * 5) * diff
+        spd = (55 + min(self.wave, 25) * 2) * (1.0 + (diff - 1.0) * 0.35)
+        dmg = (6 + self.wave * 0.4) * diff
         self.enemies.append(
             Enemy(
                 x,
@@ -83,7 +92,7 @@ class GameState:
                 speed=spd,
                 damage=dmg,
                 radius=14,
-                xp_value=6 + self.wave * 0.5,
+                xp_value=(6 + self.wave * 0.5) * (0.85 + diff * 0.08),
             )
         )
 
@@ -137,6 +146,8 @@ class GameState:
             self.player.hp = min(self.player.max_hp, self.player.hp + 10 + stacks * 2)
 
     def update(self, dt: float) -> None:
+        self.difficulty_time += dt
+
         if self.player.hp <= 0 or self.level_up_paused:
             return
 
@@ -147,7 +158,10 @@ class GameState:
         self.spawn_timer -= dt
         if self.spawn_timer <= 0:
             self.spawn_enemy()
-            self.spawn_timer = self.spawn_interval
+            # Spawn mais rápido conforme a onda e o tempo (teto para não virar caos instantâneo)
+            self.spawn_timer = max(
+                0.35, self.spawn_interval / (1.0 + self.wave * 0.04 + self.difficulty_time * 0.02)
+            )
 
         target = (self.player.x, self.player.y)
         for e in self.enemies:
@@ -260,6 +274,7 @@ class GameState:
         self.mad_prophet_timer = 0.0
         self._prophet_dmg_left = 0.0
         self._prophet_rng_left = 0.0
+        self.difficulty_time = 0.0
         self.particles.clear()
         self.screen_shake = 0.0
         self.damage_flash = 0.0
