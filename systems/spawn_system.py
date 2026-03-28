@@ -18,13 +18,14 @@ _KINDS = (
     EnemyKind.CORRUPT_PRIEST,
     EnemyKind.SHADOW_CREATURE,
     EnemyKind.POSSESSED_STATUE,
+    EnemyKind.FALLEN_ANGEL,
     EnemyKind.SKITTER,
     EnemyKind.BULWARK,
     EnemyKind.HERETIC,
     EnemyKind.CARRION_BOMB,
 )
 
-_WEIGHTS = (0.22, 0.18, 0.12, 0.18, 0.08, 0.12, 0.10)
+_WEIGHTS = (0.18, 0.14, 0.12, 0.10, 0.14, 0.08, 0.12, 0.12)
 
 
 def _random_point_outside_view(state: GameState) -> tuple[float, float]:

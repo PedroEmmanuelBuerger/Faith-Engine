@@ -12,9 +12,9 @@ import pygame
 
 from core import config, utils
 from core.game_state import GameState
-from entities.enemy import EnemyKind
 from ui import environment, hud
 from ui.player_sprites import load_player_sprites
+from ui.procedural_sprites import enemy_sprite_for_kind, load_procedural_player_sprites
 from ui.upgrade_menu import UpgradeMenu
 
 
@@ -57,44 +57,26 @@ def _draw_player_sprite(
 
 
 def _draw_enemy(surface: pygame.Surface, sx: int, sy: int, enemy) -> None:
+    spr = enemy_sprite_for_kind(enemy.kind)
     flash = min(1.0, enemy.hit_flash)
+    h = max(28, min(58, int(enemy.radius * 2.7)))
+    w = max(20, int(spr.get_width() * h / max(1, spr.get_height())))
+    try:
+        scaled = pygame.transform.smoothscale(spr, (w, h))
+    except (pygame.error, ValueError):
+        scaled = pygame.transform.scale(spr, (w, h))
+    out = scaled.copy()
+    if flash > 0.05:
+        tint = pygame.Surface(scaled.get_size(), pygame.SRCALPHA)
+        tint.fill((255, 110, 110, int(100 * flash)))
+        out.blit(tint, (0, 0))
+    scaled = out
+    rect = scaled.get_rect(midbottom=(int(sx), int(sy + enemy.radius)))
+    surface.blit(scaled, rect)
     if getattr(enemy, "charmed_until", 0) > 0:
-        tint = pygame.Surface((40, 40), pygame.SRCALPHA)
-        tint.fill((180, 255, 220, 90))
-        surface.blit(tint, (sx - 20, sy - 20))
-    if enemy.kind == EnemyKind.POSSESSED_STATUE:
-        base = (100 + int(40 * flash), 95 + int(35 * flash), 115 + int(30 * flash))
-        body = pygame.Rect(sx - 16, sy - 20, 32, 36)
-        pygame.draw.rect(surface, base, body, border_radius=4)
-        pygame.draw.rect(surface, config.COLOR_STONE_LIGHT, body, 2, border_radius=4)
-        pygame.draw.circle(surface, config.COLOR_GOLD_DIM, (sx, sy - 24), 6)
-    elif enemy.kind == EnemyKind.SHADOW_CREATURE:
-        pygame.draw.ellipse(surface, (35, 28, 55), (sx - 18, sy - 12, 36, 24))
-        pygame.draw.ellipse(surface, (80, 50, 120), (sx - 18, sy - 12, 36, 24), 2)
-        pygame.draw.circle(surface, (200, 60, 80), (sx - 6, sy - 4), 2)
-        pygame.draw.circle(surface, (200, 60, 80), (sx + 6, sy - 4), 2)
-    elif enemy.kind == EnemyKind.SKITTER:
-        pygame.draw.polygon(
-            surface,
-            (140 + int(30 * flash), 90, 160),
-            [(sx, sy - 14), (sx + 14, sy + 10), (sx - 14, sy + 10)],
-        )
-    elif enemy.kind == EnemyKind.BULWARK:
-        body = pygame.Rect(sx - 20, sy - 18, 40, 38)
-        pygame.draw.rect(surface, (55 + int(25 * flash), 52, 72), body, border_radius=6)
-        pygame.draw.rect(surface, (95, 90, 115), body, 3, border_radius=6)
-    elif enemy.kind == EnemyKind.HERETIC:
-        pygame.draw.rect(surface, (120 + int(30 * flash), 70, 65), (sx - 12, sy - 16, 24, 34), border_radius=4)
-        pygame.draw.line(surface, (200, 200, 255), (sx + 14, sy - 4), (sx + 22, sy - 8), 2)
-    elif enemy.kind == EnemyKind.CARRION_BOMB:
-        pygame.draw.circle(surface, (70 + int(40 * flash), 140, 60), (sx, sy), 16)
-        pygame.draw.circle(surface, (255, 200, 80), (sx, sy), 8)
-    else:
-        # Sacerdote corrupto — manto bordô
-        pygame.draw.ellipse(surface, (90 + int(40 * flash), 35, 50), (sx - 14, sy - 14, 28, 30))
-        pygame.draw.rect(surface, (55, 45, 70), (sx - 10, sy + 2, 20, 18), border_radius=3)
-        pygame.draw.circle(surface, (200, 200, 220), (sx, sy - 8), 5)
-        pygame.draw.circle(surface, (255, 80, 90), (sx - 2, sy - 8), 2)
+        glow = pygame.Surface((w + 8, h + 8), pygame.SRCALPHA)
+        pygame.draw.ellipse(glow, (120, 255, 200, 70), glow.get_rect())
+        surface.blit(glow, (rect.x - 4, rect.y - 4))
 
 
 def _draw_projectile(surface: pygame.Surface, sx: int, sy: int, kind: str) -> None:
@@ -114,8 +96,13 @@ class UIManager:
         self.hud_font = pygame.font.SysFont("segoeui", 18)
         self.small_font = pygame.font.SysFont("segoeui", 15)
         self._player_idle, self._player_walk_frames = load_player_sprites()
+        if self._player_idle is None or not self._player_walk_frames:
+            self._player_idle, self._player_walk_frames = load_procedural_player_sprites()
         self.death_restart_rect: pygame.Rect | None = None
         self.death_menu_rect: pygame.Rect | None = None
+        self.pause_resume_rect: pygame.Rect | None = None
+        self.pause_menu_rect: pygame.Rect | None = None
+        self.pause_exit_rect: pygame.Rect | None = None
 
     def draw_world_layer(self, surface: pygame.Surface, state: GameState) -> None:
         cx, cy = state.camera_x, state.camera_y
@@ -234,6 +221,10 @@ class UIManager:
                 self.death_menu_rect = None
 
     def draw_frame(self, screen: pygame.Surface, state: GameState) -> None:
+        if not state.game_paused:
+            self.pause_resume_rect = None
+            self.pause_menu_rect = None
+            self.pause_exit_rect = None
         world = pygame.Surface((config.VIEWPORT_W, config.VIEWPORT_H))
         self.draw_world_layer(world, state)
 
@@ -253,7 +244,34 @@ class UIManager:
             config.VIEWPORT_W,
             config.VIEWPORT_H,
         )
+        if state.game_paused and state.death_mode == "alive":
+            self.draw_pause_overlay(screen)
         self.draw_death_screen(screen, state)
+
+    def draw_pause_overlay(self, surface: pygame.Surface) -> None:
+        vw, vh = config.VIEWPORT_W, config.VIEWPORT_H
+        dim = pygame.Surface((vw, vh), pygame.SRCALPHA)
+        dim.fill((8, 4, 18, 200))
+        surface.blit(dim, (0, 0))
+        title = self.title_font.render("PAUSA", True, (240, 220, 255))
+        tr = title.get_rect(center=(vw // 2, vh // 3))
+        surface.blit(title, tr)
+
+        bw, bh, gap = 260, 46, 14
+        cx = vw // 2 - bw // 2
+        y0 = tr.bottom + 36
+        self.pause_resume_rect = pygame.Rect(cx, y0, bw, bh)
+        self.pause_menu_rect = pygame.Rect(cx, y0 + bh + gap, bw, bh)
+        self.pause_exit_rect = pygame.Rect(cx, y0 + (bh + gap) * 2, bw, bh)
+        for r, label in (
+            (self.pause_resume_rect, "Continuar"),
+            (self.pause_menu_rect, "Menu principal"),
+            (self.pause_exit_rect, "Sair do jogo"),
+        ):
+            pygame.draw.rect(surface, (44, 36, 68), r, border_radius=12)
+            pygame.draw.rect(surface, (190, 165, 230), r, 2, border_radius=12)
+            t = self.hud_font.render(label, True, (245, 238, 255))
+            surface.blit(t, t.get_rect(center=r.center))
 
     def handle_upgrade_hover(self, mouse_xy: Tuple[int, int], state: GameState) -> None:
         if state.level_up_paused:

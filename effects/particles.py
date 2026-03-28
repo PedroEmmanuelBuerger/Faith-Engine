@@ -52,6 +52,8 @@ def spawn_death_burst(state: Any, x: float, y: float, kind: str) -> None:
         palette = ((180, 175, 190), (140, 135, 155), (220, 210, 230))
     elif kind == EnemyKind.SHADOW_CREATURE:
         palette = ((80, 60, 120), (120, 80, 160), (40, 30, 70))
+    elif kind == EnemyKind.FALLEN_ANGEL:
+        palette = ((200, 190, 220), (120, 100, 160), (90, 70, 130))
     elif kind == EnemyKind.SKITTER:
         palette = ((120, 90, 140), (90, 70, 110), (160, 120, 180))
     elif kind == EnemyKind.BULWARK:

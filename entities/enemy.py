@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 class EnemyKind:
     CORRUPT_PRIEST = "priest"
+    FALLEN_ANGEL = "fallen_angel"
     POSSESSED_STATUE = "statue"
     SHADOW_CREATURE = "shadow"
     SKITTER = "skitter"
@@ -122,6 +123,8 @@ def stats_for_kind(
     """Multiplicadores por tipo — HP/dano base fixos por onda (sem scaling temporal)."""
     if kind == EnemyKind.POSSESSED_STATUE:
         return base_hp * 1.35, base_spd * 0.72, base_dmg * 1.15, base_xp * 1.1, 18.0
+    if kind == EnemyKind.FALLEN_ANGEL:
+        return base_hp * 0.92, base_spd * 1.08, base_dmg * 1.05, base_xp * 1.08, 14.0
     if kind == EnemyKind.SHADOW_CREATURE:
         return base_hp * 0.75, base_spd * 1.25, base_dmg * 0.9, base_xp * 0.95, 12.0
     if kind == EnemyKind.SKITTER:
